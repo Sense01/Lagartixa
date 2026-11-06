@@ -1,185 +1,185 @@
 import { chromium } from 'playwright';
 import robotsParser from 'robots-parser';
+import { sleep, norm, SKIP, JUNK, cleanUrl, urlScore } from './util.js';
+import { ensureCursor, moveCursor, setFast } from './spider.js';
+import { dismissConsent } from './consent.js';
+import { analyzePage, pageMeta } from './scan.js';
+import { sitemapUrls } from './sitemap.js';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SKIP = /\.(pdf|jpe?g|png|gif|svg|zip|mp4|mp3|css|js)(\?|$)/i;
+const UA = 'WebCrawlerApp';
 
-// Aranha animada (com fio de seda preso ao topo da página) no lugar do cursor
-async function ensureCursor(page) {
-  await page.evaluate(() => {
-    if (document.getElementById('__spider')) return;
-    const T = 'left .6s ease, top .6s ease, height .6s ease';
-    const thread = document.createElement('div');
-    thread.id = '__thread';
-    thread.style.cssText =
-      'position:fixed;z-index:2147483646;width:2px;left:80px;top:0;height:80px;' +
-      'background:#777;box-shadow:0 0 2px #fff;pointer-events:none;transition:' + T;
-    const sp = document.createElement('div');
-    sp.id = '__spider';
-    sp.style.cssText =
-      'position:fixed;z-index:2147483647;left:80px;top:80px;width:56px;height:56px;' +
-      'margin:-28px 0 0 -28px;pointer-events:none;transition:' + T;
-    const leg = (d) => `<path d="${d}"/>`;
-    const L = [
-      'M-6 -6 Q-18 -22 -26 -20', 'M-7 -2 Q-22 -10 -28 -4',
-      'M-7 3 Q-22 8 -28 14', 'M-6 7 Q-16 22 -24 26',
-    ];
-    const R = L.map((d) => d.replace(/-?\d+(\.\d+)?/g, (n, i, s) => n).replace(/(-?\d+) (-?\d+)/g, (m, a, b) => (-a) + ' ' + b));
-    sp.innerHTML =
-      '<svg viewBox="-30 -30 60 60" width="56" height="56" style="transition:transform .3s ease">' +
-      '<g stroke="#111" stroke-width="2.6" fill="none" stroke-linecap="round">' +
-      '<g>' + L.map(leg).join('') +
-      '<animateTransform attributeName="transform" type="rotate" values="-5 0 0;5 0 0;-5 0 0" dur=".45s" repeatCount="indefinite"/></g>' +
-      '<g>' + R.map(leg).join('') +
-      '<animateTransform attributeName="transform" type="rotate" values="5 0 0;-5 0 0;5 0 0" dur=".45s" repeatCount="indefinite"/></g>' +
-      '</g>' +
-      '<ellipse cx="0" cy="5" rx="9" ry="12" fill="#1c1c1c"/>' +
-      '<circle cx="0" cy="-9" r="6" fill="#2b2b2b"/>' +
-      '<circle cx="-2.5" cy="-11" r="1.4" fill="#ff3b3b"/><circle cx="2.5" cy="-11" r="1.4" fill="#ff3b3b"/>' +
-      '</svg>';
-    document.body.append(thread, sp);
-  });
-}
-
-async function moveCursor(page, x, y) {
-  await page.evaluate(([x, y]) => {
-    const s = document.getElementById('__spider'), t = document.getElementById('__thread');
-    if (!s || !t) return;
-    const px = parseFloat(s.dataset.x ?? s.style.left), py = parseFloat(s.dataset.y ?? s.style.top);
-    if (Math.hypot(x - px, y - py) > 4)
-      s.firstElementChild.style.transform = 'rotate(' + (Math.atan2(y - py, x - px) * 180 / Math.PI + 90) + 'deg)';
-    s.style.left = x + 'px'; s.style.top = y + 'px';
-    t.style.left = x + 'px'; t.style.height = y + 'px';
-    s.dataset.x = x; s.dataset.y = y;
-  }, [x, y]);
-  await sleep(700);
-}
-
-// Procura as palavras-chave na página e destaca-as a amarelo
-async function scan(page, keywords) {
-  return page.evaluate((kws) => {
-    const out = [], ranges = [];
-    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let n;
-    while ((n = w.nextNode())) {
-      const tag = n.parentElement?.tagName;
-      if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(tag)) continue;
-      const t = n.nodeValue.toLowerCase();
-      for (const k of kws) {
-        const kl = k.toLowerCase();
-        let i = t.indexOf(kl);
-        while (i !== -1) {
-          const r = new Range();
-          r.setStart(n, i); r.setEnd(n, i + kl.length);
-          ranges.push(r);
-          if (out.length < 30)
-            out.push({ keyword: k, snippet: n.nodeValue.slice(Math.max(0, i - 60), i + kl.length + 60).trim() });
-          i = t.indexOf(kl, i + kl.length);
-        }
-      }
-    }
-    if (ranges.length && window.CSS?.highlights) {
-      const st = document.createElement('style');
-      st.textContent = '::highlight(hit){background:#ffeb3b;color:#000}';
-      document.head.appendChild(st);
-      CSS.highlights.set('hit', new Highlight(...ranges));
-      ranges[0].startContainer.parentElement?.scrollIntoView({ block: 'center' });
-    }
-    return out;
-  }, keywords);
-}
-
-async function scrollDown(page) {
-  for (let i = 0; i < 5; i++) {
-    const atEnd = await page.evaluate(() => {
-      window.scrollBy({ top: 350, behavior: 'smooth' });
-      return window.innerHeight + window.scrollY >= document.body.scrollHeight - 5;
+async function scrollDown(page, steps) { // com a aranha
+  for (let i = 0; i < steps; i++) {
+    const end = await page.evaluate(() => {
+      window.scrollBy({ top: 450, behavior: 'smooth' });
+      return innerHeight + scrollY >= document.body.scrollHeight - 5;
     });
     await moveCursor(page, 200 + Math.random() * 600, 150 + Math.random() * 400);
-    if (atEnd) break;
+    if (end) break;
   }
 }
 
-export async function crawl({ keywords, sites, maxPages = 10, delay = 1000 }, emit, signal) {
-  const browser = await chromium.launch({ args: ['--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1100, height: 700 }, bypassCSP: true });
-  const results = [];
-  let visited = 0;
+async function autoScroll(page, steps) { // sem animação, só para carregar conteúdo "lazy"
+  for (let i = 0; i < steps; i++) {
+    const end = await page.evaluate(() => { window.scrollBy(0, innerHeight); return innerHeight + scrollY >= document.body.scrollHeight - 5; });
+    await sleep(250);
+    if (end) break;
+  }
+}
 
-  // Envia capturas de ecrã continuamente -> é isto que cria a "animação" na UI
-  const frames = setInterval(async () => {
-    try {
-      const buf = await page.screenshot({ type: 'jpeg', quality: 55 });
-      emit({ type: 'frame', data: buf.toString('base64') });
-    } catch {}
+/**
+ * Motor de pesquisa: N separadores em paralelo, fila global "best-first" com limite de ritmo por site,
+ * sitemaps, deduplicação por URL canónico, pontuação de relevância e dados estruturados.
+ */
+export async function crawl(cfg, emit, signal) {
+  const { include, exclude, match, sites, maxPages, maxHits, maxDepth, delay, concurrency, consent, fast, useSitemap, timeLimit } = cfg;
+  setFast(fast);
+  const t0 = Date.now(), deadline = t0 + timeLimit * 1000;
+
+  const browser = await chromium.launch({ args: ['--no-sandbox'] });
+  const context = await browser.newContext({ viewport: { width: 1100, height: 700 }, bypassCSP: true });
+  if (fast) await context.route('**/*', (r) => (['image', 'media', 'font'].includes(r.request().resourceType()) ? r.abort() : r.continue()));
+  const pages = await Promise.all(Array.from({ length: concurrency }, () => context.newPage()));
+
+  const origins = new Map(), results = [];
+  let visited = 0, inflight = 0;
+  const queued = () => [...origins.values()].reduce((a, o) => a + o.queue.length, 0);
+  const stats = () => ({ visited, queued: queued(), hits: results.length, elapsed: Math.round((Date.now() - t0) / 1000) });
+  const stopped = () => signal.aborted || Date.now() > deadline || results.length >= maxHits;
+  const pending = () => [...origins.values()].some((o) => o.queue.length && o.taken < maxPages);
+  const enqueue = (st, url, score, depth, raw = url) => {
+    if (st.known.has(url)) return;
+    st.known.add(url);
+    st.queue.push({ url, raw, score, depth });
+  };
+
+  // Só a 1.ª página (a "animada") é transmitida ao vivo
+  const timer = setInterval(async () => {
+    try { emit({ type: 'frame', data: (await pages[0].screenshot({ type: 'jpeg', quality: 55 })).toString('base64') }); } catch {}
   }, 250);
 
-  try {
-    for (const site of sites) {
-      if (signal.aborted) break;
-      const origin = new URL(site).origin;
-      let robots = null;
-      try {
-        const txt = await (await fetch(origin + '/robots.txt')).text();
-        robots = robotsParser(origin + '/robots.txt', txt);
-      } catch {}
-
-      const queue = [site], seen = new Set();
-      let count = 0;
-      emit({ type: 'status', message: `A começar em ${site}` });
-
-      while (queue.length && count < maxPages && !signal.aborted) {
-        const url = queue.shift();
-        if (seen.has(url)) continue;
-        seen.add(url);
-        if (robots && robots.isAllowed(url, 'WebCrawlerApp') === false) continue;
-
+  async function initOrigin(origin, siteList) {
+    const st = { origin, queue: [], known: new Set(), visited: new Set(), taken: 0, next: 0, robots: null, consentChecks: 0 };
+    origins.set(origin, st);
+    try {
+      const r = await fetch(origin + '/robots.txt', { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': UA } });
+      if (r.ok) st.robots = robotsParser(origin + '/robots.txt', await r.text());
+    } catch {}
+    for (const s of siteList) enqueue(st, cleanUrl(s), 100, 0);
+    if (useSitemap) {
+      emit({ type: 'status', message: `A ler sitemap de ${origin}…` });
+      const seeds = [];
+      for (const u of await sitemapUrls(origin, st.robots)) {
         try {
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        } catch {
-          emit({ type: 'status', message: `Falhou: ${url}` });
-          continue;
-        }
-        count++; visited++;
-        emit({ type: 'visit', url, title: await page.title(), visited });
+          const href = cleanUrl(u), p = new URL(href);
+          if (p.origin !== origin || SKIP.test(href) || JUNK.test(p.pathname)) continue;
+          const s = urlScore(href, '', include);
+          if (s > 5) seeds.push([href, s]);
+        } catch {}
+      }
+      seeds.sort((a, b) => b[1] - a[1]).slice(0, 300).forEach(([h, s]) => enqueue(st, h, s + 5, 1));
+      if (seeds.length) emit({ type: 'status', message: `${Math.min(seeds.length, 300)} páginas relevantes encontradas no sitemap de ${origin}` });
+    }
+  }
 
-        await ensureCursor(page);
-        const matches = await scan(page, keywords);
-        if (matches.length) {
-          const hit = { url, title: await page.title(), matches };
-          results.push(hit);
-          emit({ type: 'hit', ...hit });
-        }
-        await scrollDown(page);
+  function take() {
+    const now = Date.now();
+    let best = null;
+    for (const st of origins.values()) {
+      if (!st.queue.length || st.taken >= maxPages || now < st.next) continue;
+      st.queue.sort((a, b) => b.score - a.score);
+      if (!best || st.queue[0].score > best.queue[0].score) best = st;
+    }
+    if (!best) return null;
+    best.taken++; best.next = now + delay; // limite de ritmo por site
+    return { st: best, ...best.queue.shift() };
+  }
 
-        const links = await page.evaluate(() => [...document.querySelectorAll('a[href]')].map((a) => a.href));
-        for (const l of links) {
-          try {
-            const u = new URL(l);
-            u.hash = '';
-            if (u.origin === origin && /^https?:/.test(u.protocol) && !SKIP.test(u.href) && !seen.has(u.href))
-              queue.push(u.href);
-          } catch {}
-        }
+  async function visit({ st, url, depth }, page, animate) {
+    if (st.robots && st.robots.isAllowed(url, UA) === false) { st.taken--; return; }
+    let resp;
+    for (let attempt = 0; attempt < 2 && !resp; attempt++) {
+      try { resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 }); } catch { await sleep(800); }
+    }
+    if (!resp || resp.status() >= 400 || !/html/i.test(resp.headers()['content-type'] || '')) {
+      emit({ type: 'status', message: `Ignorada (${resp ? resp.status() : 'sem resposta'}): ${url}` });
+      return;
+    }
+    await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
+    const meta = await pageMeta(page);
+    const key = meta.canonical ? cleanUrl(meta.canonical) : url;
+    if (st.visited.has(key)) return; // mesmo conteúdo com outro URL
+    st.visited.add(key); st.visited.add(url);
+    visited++;
+    emit({ type: 'visit', url, title: await page.title(), ...stats() });
 
-        // Move o cursor até ao próximo link antes de navegar
-        const next = queue[0];
-        if (next) {
-          const pos = await page.evaluate((href) => {
-            const a = [...document.querySelectorAll('a[href]')].find((a) => a.href.split('#')[0] === href);
-            if (!a) return null;
-            a.scrollIntoView({ block: 'center' });
-            const r = a.getBoundingClientRect();
-            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          }, next);
-          if (pos) await moveCursor(page, pos.x, pos.y);
-        }
-        await sleep(delay);
+    if (st.consentChecks < 3) { st.consentChecks++; await dismissConsent(page, consent); }
+    if (animate) { await ensureCursor(page); await scrollDown(page, fast ? 2 : 5); } else await autoScroll(page, fast ? 2 : 4);
+
+    const a = await analyzePage(page, { include, exclude, highlight: animate });
+    const found = include.filter((t) => a.counts[t.label] > 0).length;
+    const ok = !a.excluded && found > 0 && (match === 'all' ? found === include.length : true);
+    if (ok) {
+      const title = norm(a.title), heads = norm(a.headings), u = norm(decodeURI(url));
+      let score = 0;
+      for (const t of include) {
+        const c = a.counts[t.label];
+        if (c) score += Math.min(c, 10) + 1 + (title.includes(t.n) ? 15 : 0) + (heads.includes(t.n) ? 8 : 0) + (u.includes(t.n) ? 5 : 0);
+      }
+      const hit = { url, title: a.title, score, counts: a.counts, matches: a.snippets, description: meta.description, data: meta.data };
+      results.push(hit);
+      emit({ type: 'hit', ...hit });
+    }
+
+    if (depth < maxDepth) {
+      const links = await page.evaluate(() => [...document.querySelectorAll('a[href]')].map((x) => ({
+        href: x.href, text: (x.innerText || x.getAttribute('aria-label') || '').trim().slice(0, 120) })));
+      for (const l of links) {
+        try {
+          if (!/^https?:/.test(l.href)) continue;
+          const href = cleanUrl(l.href), p = new URL(href);
+          if (p.origin !== st.origin || SKIP.test(href) || JUNK.test(p.pathname) || st.known.has(href)) continue;
+          enqueue(st, href, urlScore(href, l.text, include) + (ok ? 2 : 0), depth + 1, l.href);
+        } catch {}
       }
     }
+
+    if (animate) { // a aranha caminha até ao próximo link
+      st.queue.sort((x, y) => y.score - x.score);
+      const next = st.queue[0]?.raw;
+      const pos = next && await page.evaluate((href) => {
+        const el = [...document.querySelectorAll('a[href]')].find((x) => x.href === href);
+        if (!el) return null;
+        el.scrollIntoView({ block: 'center' });
+        const r = el.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, next);
+      if (pos) await moveCursor(page, pos.x, pos.y);
+    }
+  }
+
+  async function worker(i) {
+    while (!stopped()) {
+      const job = take();
+      if (!job) { if (!inflight && !pending()) break; await sleep(150); continue; }
+      inflight++;
+      try { await visit(job, pages[i], i === 0); }
+      catch (e) { emit({ type: 'status', message: `Erro em ${job.url}: ${e.message.split('\n')[0]}` }); }
+      finally { inflight--; }
+    }
+  }
+
+  try {
+    const byOrigin = new Map();
+    for (const s of sites) byOrigin.set(new URL(s).origin, [...(byOrigin.get(new URL(s).origin) || []), s]);
+    await Promise.all([...byOrigin].map(([o, list]) => initOrigin(o, list)));
+    emit({ type: 'status', message: 'A pesquisar…' });
+    await Promise.all(pages.map((_, i) => worker(i)));
   } finally {
-    clearInterval(frames);
+    clearInterval(timer);
     await browser.close();
   }
-  return { results, visited, stopped: signal.aborted };
+  results.sort((a, b) => b.score - a.score);
+  const reason = signal.aborted ? 'parado' : results.length >= maxHits ? 'limite de resultados' : Date.now() > deadline ? 'tempo limite' : 'concluído';
+  return { results, ...stats(), reason };
 }
