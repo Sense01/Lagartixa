@@ -23,3 +23,9 @@ Abre o repositório num Codespace, corre os comandos acima e abre a porta 3000 (
 ## Notas
 - Respeita o `robots.txt` e faz pausa entre páginas. Usa só em sites onde isso é permitido.
 - Só segue links do mesmo domínio de cada site.
+
+## Pôr online (Render, via Docker)
+1. Faz push do projeto para um repositório GitHub.
+2. Em render.com: New > Web Service > liga o repositório > Runtime: Docker.
+3. Em Environment define `APP_PASSWORD` (obrigatório, para ninguém mais usar a app) e, opcionalmente, `NTFY_TOPIC`.
+4. Deploy. A app fica em `https://<nome>.onrender.com` (utilizador: qualquer um; palavra-passe: `APP_PASSWORD`).

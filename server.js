@@ -3,10 +3,25 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { crawl } from './crawler.js';
 
+// Protege a app com palavra-passe se APP_PASSWORD estiver definida
+function authorized(req) {
+  const pass = process.env.APP_PASSWORD;
+  if (!pass) return true;
+  const h = req.headers.authorization || '';
+  if (!h.startsWith('Basic ')) return false;
+  const given = Buffer.from(h.slice(6), 'base64').toString().split(':').slice(1).join(':');
+  return given === pass;
+}
+
 const app = express();
+app.use((req, res, next) => {
+  if (authorized(req)) return next();
+  res.set('WWW-Authenticate', 'Basic realm="crawler"');
+  res.status(401).send('Autenticação necessária');
+});
 app.use(express.static('public'));
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, verifyClient: ({ req }) => authorized(req) });
 let running = null;
 
 // Notificação push opcional (funciona mesmo com o separador fechado): https://ntfy.sh
