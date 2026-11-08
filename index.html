@@ -1,92 +1,131 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Web Crawler</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, sans-serif; background:#0f1115; color:#e8e8e8; display:grid; grid-template-columns:340px 1fr; height:100vh; }
-  aside { padding:16px; border-right:1px solid #262a33; overflow:auto; }
-  main { padding:16px; display:flex; flex-direction:column; gap:10px; overflow:auto; }
-  label { display:block; margin:12px 0 4px; font-size:13px; color:#9aa3b2; }
-  input, textarea { width:100%; padding:8px; border-radius:6px; border:1px solid #333a47; background:#171a21; color:inherit; font:inherit; }
-  textarea { height:110px; resize:vertical; }
-  .row { display:flex; gap:8px; }
-  button { flex:1; margin-top:14px; padding:10px; border:0; border-radius:6px; font-weight:600; cursor:pointer; }
-  #start { background:#3b82f6; color:#fff; } #stop { background:#2a2f3a; color:#fff; }
-  #screen { width:100%; max-width:1100px; aspect-ratio:1100/700; background:#000; border-radius:8px; border:1px solid #262a33; object-fit:contain; }
-  #bar { font-size:13px; color:#9aa3b2; word-break:break-all; }
-  .hit { background:#171a21; border:1px solid #262a33; border-radius:8px; padding:10px; margin-bottom:8px; }
-  .hit a { color:#7cb3ff; } .hit p { margin:6px 0 0; font-size:13px; color:#c3c9d4; }
-  mark { background:#ffeb3b; color:#000; }
-  @media (max-width:800px){ body{grid-template-columns:1fr; height:auto;} }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Web Crawler</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
+  <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Crawler">
 </head>
 <body>
-<aside>
-  <h2>Web Crawler</h2>
-  <label>O que procurar (separado por vírgulas)</label>
-  <input id="keywords" placeholder="estágio, logística, supply chain">
-  <label>Sites (um por linha)</label>
-  <textarea id="sites" placeholder="https://exemplo.com"></textarea>
-  <label>Máx. páginas por site</label>
-  <input id="maxPages" type="number" value="10" min="1" max="50">
-  <label>Pausa entre páginas (ms)</label>
-  <input id="delay" type="number" value="1000" min="500">
-  <div class="row">
-    <button id="start">Iniciar</button>
-    <button id="stop">Parar</button>
-  </div>
-</aside>
-<main>
-  <img id="screen" alt="Vista ao vivo do crawler">
-  <div id="bar">Parado.</div>
-  <h3>Resultados</h3>
-  <div id="hits"></div>
-</main>
-<script>
-const $ = (id) => document.getElementById(id);
-let ws;
-function connect() {
-  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-  ws.onmessage = (e) => {
-    const m = JSON.parse(e.data);
-    if (m.type === 'frame') $('screen').src = 'data:image/jpeg;base64,' + m.data;
-    else if (m.type === 'status') $('bar').textContent = m.message;
-    else if (m.type === 'visit') $('bar').textContent = `(${m.visited}) ${m.title || ''} — ${m.url}`;
-    else if (m.type === 'hit') addHit(m);
-    else if (m.type === 'error') { $('bar').textContent = m.message; }
-    else if (m.type === 'done') {
-      $('bar').textContent = 'Concluído. ' + m.summary;
-      if (Notification.permission === 'granted') new Notification('Pesquisa concluída', { body: m.summary });
-    }
-  };
-  ws.onclose = () => setTimeout(connect, 1500);
-}
-function esc(s) { return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
-function addHit(h) {
-  const d = document.createElement('div');
-  d.className = 'hit';
-  d.innerHTML = `<a href="${h.url}" target="_blank" rel="noopener">${esc(h.title || h.url)}</a>` +
-    h.matches.slice(0, 3).map((x) => {
-      const re = new RegExp('(' + x.keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
-      return `<p>…${esc(x.snippet).replace(re, '<mark>$1</mark>')}…</p>`;
-    }).join('');
-  $('hits').prepend(d);
-}
-$('start').onclick = () => {
-  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-  $('hits').innerHTML = '';
-  ws.send(JSON.stringify({ type: 'start', config: {
-    keywords: $('keywords').value.split(','),
-    sites: $('sites').value.split('\n').map((s) => s.trim()).filter(Boolean),
-    maxPages: $('maxPages').value, delay: $('delay').value,
-  }}));
-};
-$('stop').onclick = () => ws.send(JSON.stringify({ type: 'stop' }));
-connect();
-</script>
+  <header>
+    <h1><img src="icons/logo.svg" alt="" class="logo"> Web Crawler</h1>
+    <p class="sub">Crawler 100% no browser — corre em GitHub Pages.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <form id="config">
+        <label class="half">
+          Sites a analisar <small>(um por linha)</small>
+          <textarea id="sites" rows="4" placeholder="https://example.com&#10;outrosite.pt" required></textarea>
+        </label>
+        <label class="half">
+          Palavras-chave <small>(uma por linha ou separadas por vírgula)</small>
+          <textarea id="keywords" rows="4" placeholder="preço&#10;entrega grátis&#10;promoção"></textarea>
+        </label>
+
+        <div class="checks full">
+          <label><input type="checkbox" id="wholeWord" checked> Palavra inteira</label>
+          <label><input type="checkbox" id="caseSensitive"> Distinguir maiúsculas/minúsculas</label>
+        </div>
+
+        <label>
+          Máx. páginas
+          <input type="number" id="maxPages" value="50" min="1" max="5000">
+        </label>
+        <label>
+          Profundidade máx.
+          <input type="number" id="maxDepth" value="2" min="0" max="20">
+        </label>
+        <label>
+          Pedidos em paralelo
+          <input type="number" id="concurrency" value="3" min="1" max="10">
+        </label>
+        <label>
+          Pausa entre pedidos (ms)
+          <input type="number" id="delay" value="300" min="0" step="50">
+        </label>
+
+        <label class="full">
+          Proxy CORS
+          <select id="proxy">
+            <option value="https://api.allorigins.win/raw?url={url}">allorigins.win</option>
+            <option value="https://corsproxy.io/?url={url}">corsproxy.io</option>
+            <option value="https://api.codetabs.com/v1/proxy?quest={url}">codetabs.com</option>
+            <option value="{url}">Nenhum (só sites com CORS aberto)</option>
+            <option value="custom">Personalizado…</option>
+          </select>
+        </label>
+        <label class="full hidden" id="customProxyWrap">
+          Proxy personalizado (use <code>{url}</code> como marcador)
+          <input type="text" id="customProxy" placeholder="https://meu-proxy.workers.dev/?url={url}">
+        </label>
+
+        <div class="checks full">
+          <label><input type="checkbox" id="sameDomain" checked> Ficar dentro dos sites indicados</label>
+          <label><input type="checkbox" id="respectRobots" checked> Respeitar robots.txt</label>
+          <label><input type="checkbox" id="stripQuery"> Ignorar query strings (?a=b)</label>
+        </div>
+
+        <div class="buttons full">
+          <button type="submit" id="startBtn">▶ Iniciar</button>
+          <button type="button" id="stopBtn" disabled>■ Parar</button>
+          <button type="button" id="exportJson" disabled>⬇ JSON</button>
+          <button type="button" id="exportCsv" disabled>⬇ CSV</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="stats">
+      <div><span id="statCrawled">0</span><small>visitadas</small></div>
+      <div><span id="statQueued">0</span><small>em fila</small></div>
+      <div><span id="statMatches">0</span><small>com palavras-chave</small></div>
+      <div><span id="statErrors">0</span><small>erros</small></div>
+      <div><span id="statLinks">0</span><small>links únicos</small></div>
+      <div><span id="statStatus">parado</span><small>estado</small></div>
+    </section>
+
+    <section class="panel hidden" id="kwPanel">
+      <h2>Palavras-chave</h2>
+      <div id="kwSummary" class="kw-summary"></div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input type="search" id="filter" placeholder="Filtrar resultados…">
+        <label class="inline"><input type="checkbox" id="onlyMatches"> Só páginas com palavras-chave</label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>URL</th><th>Estado</th><th>Título</th><th>Palavras-chave</th>
+              <th>Prof.</th><th>Links</th><th>ms</th>
+            </tr>
+          </thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Log</h2>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <script src="crawler.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

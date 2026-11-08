@@ -1,185 +1,369 @@
-import { chromium } from 'playwright';
-import robotsParser from 'robots-parser';
-import { sleep, norm, SKIP, JUNK, cleanUrl, urlScore } from './util.js';
-import { ensureCursor, moveCursor, setFast } from './spider.js';
-import { dismissConsent } from './consent.js';
-import { analyzePage, pageMeta } from './scan.js';
-import { sitemapUrls } from './sitemap.js';
-
-const UA = 'WebCrawlerApp';
-
-async function scrollDown(page, steps) { // com a aranha
-  for (let i = 0; i < steps; i++) {
-    const end = await page.evaluate(() => {
-      window.scrollBy({ top: 450, behavior: 'smooth' });
-      return innerHeight + scrollY >= document.body.scrollHeight - 5;
-    });
-    await moveCursor(page, 200 + Math.random() * 600, 150 + Math.random() * 400);
-    if (end) break;
-  }
-}
-
-async function autoScroll(page, steps) { // sem animação, só para carregar conteúdo "lazy"
-  for (let i = 0; i < steps; i++) {
-    const end = await page.evaluate(() => { window.scrollBy(0, innerHeight); return innerHeight + scrollY >= document.body.scrollHeight - 5; });
-    await sleep(250);
-    if (end) break;
-  }
-}
-
 /**
- * Motor de pesquisa: N separadores em paralelo, fila global "best-first" com limite de ritmo por site,
- * sitemaps, deduplicação por URL canónico, pontuação de relevância e dados estruturados.
+ * Crawler BFS que corre no browser.
+ * Como o GitHub Pages é estático, os pedidos a outros domínios passam
+ * por um proxy CORS (template com o marcador {url}).
  */
-export async function crawl(cfg, emit, signal) {
-  const { include, exclude, match, sites, maxPages, maxHits, maxDepth, delay, concurrency, consent, fast, useSitemap, timeLimit } = cfg;
-  setFast(fast);
-  const t0 = Date.now(), deadline = t0 + timeLimit * 1000;
+class Crawler {
+  constructor(opts) {
+    this.opts = {
+      startUrls: [],          // um ou mais sites
+      keywords: [],           // palavras/expressões a procurar
+      caseSensitive: false,
+      wholeWord: true,
+      snippetsPerKeyword: 3,
+      maxPages: 50,
+      maxDepth: 2,
+      concurrency: 3,
+      delay: 300,
+      proxy: '{url}',
+      sameDomain: true,
+      respectRobots: true,
+      stripQuery: false,
+      timeout: 15000,
+      ...opts,
+    };
+    this.queue = [];          // { url, depth, from }
+    this.seen = new Set();    // URLs já enfileirados/visitados
+    this.results = [];
+    this.errors = 0;
+    this.running = false;
+    this.active = 0;
+    this.robotsRules = new Map(); // origin -> [{allow, path}]
+    this.controllers = new Set();
+    this.keywordTotals = {};      // palavra -> nº total de ocorrências
+    this.keywordPages = {};       // palavra -> nº de páginas onde aparece
+    this.pagesWithMatches = 0;
+    this.matchers = this.buildMatchers();
 
-  const browser = await chromium.launch({ args: ['--no-sandbox'] });
-  const context = await browser.newContext({ viewport: { width: 1100, height: 700 }, bypassCSP: true });
-  if (fast) await context.route('**/*', (r) => (['image', 'media', 'font'].includes(r.request().resourceType()) ? r.abort() : r.continue()));
-  const pages = await Promise.all(Array.from({ length: concurrency }, () => context.newPage()));
+    // callbacks
+    this.onResult = () => {};
+    this.onLog = () => {};
+    this.onProgress = () => {};
+    this.onDone = () => {};
+  }
 
-  const origins = new Map(), results = [];
-  let visited = 0, inflight = 0;
-  const queued = () => [...origins.values()].reduce((a, o) => a + o.queue.length, 0);
-  const stats = () => ({ visited, queued: queued(), hits: results.length, elapsed: Math.round((Date.now() - t0) / 1000) });
-  const stopped = () => signal.aborted || Date.now() > deadline || results.length >= maxHits;
-  const pending = () => [...origins.values()].some((o) => o.queue.length && o.taken < maxPages);
-  const enqueue = (st, url, score, depth, raw = url) => {
-    if (st.known.has(url)) return;
-    st.known.add(url);
-    st.queue.push({ url, raw, score, depth });
-  };
+  /* ---------- utilitários ---------- */
 
-  // Só a 1.ª página (a "animada") é transmitida ao vivo
-  const timer = setInterval(async () => {
-    try { emit({ type: 'frame', data: (await pages[0].screenshot({ type: 'jpeg', quality: 55 })).toString('base64') }); } catch {}
-  }, 250);
-
-  async function initOrigin(origin, siteList) {
-    const st = { origin, queue: [], known: new Set(), visited: new Set(), taken: 0, next: 0, robots: null, consentChecks: 0 };
-    origins.set(origin, st);
+  normalize(raw, base) {
     try {
-      const r = await fetch(origin + '/robots.txt', { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': UA } });
-      if (r.ok) st.robots = robotsParser(origin + '/robots.txt', await r.text());
-    } catch {}
-    for (const s of siteList) enqueue(st, cleanUrl(s), 100, 0);
-    if (useSitemap) {
-      emit({ type: 'status', message: `A ler sitemap de ${origin}…` });
-      const seeds = [];
-      for (const u of await sitemapUrls(origin, st.robots)) {
-        try {
-          const href = cleanUrl(u), p = new URL(href);
-          if (p.origin !== origin || SKIP.test(href) || JUNK.test(p.pathname)) continue;
-          const s = urlScore(href, '', include);
-          if (s > 5) seeds.push([href, s]);
-        } catch {}
+      const u = new URL(raw, base);
+      if (!/^https?:$/.test(u.protocol)) return null;
+      u.hash = '';
+      if (this.opts.stripQuery) u.search = '';
+      // remove barra final excepto na raiz
+      if (u.pathname.length > 1 && u.pathname.endsWith('/')) {
+        u.pathname = u.pathname.slice(0, -1);
       }
-      seeds.sort((a, b) => b[1] - a[1]).slice(0, 300).forEach(([h, s]) => enqueue(st, h, s + 5, 1));
-      if (seeds.length) emit({ type: 'status', message: `${Math.min(seeds.length, 300)} páginas relevantes encontradas no sitemap de ${origin}` });
+      return u.href;
+    } catch {
+      return null;
     }
   }
 
-  function take() {
-    const now = Date.now();
+  hostKey(url) {
+    return new URL(url).hostname.replace(/^www\./, '');
+  }
+
+  proxied(url) {
+    const tpl = this.opts.proxy || '{url}';
+    if (tpl === '{url}') return url;
+    return tpl.replace('{url}', encodeURIComponent(url));
+  }
+
+  sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  async fetchText(url) {
+    const ctrl = new AbortController();
+    this.controllers.add(ctrl);
+    const timer = setTimeout(() => ctrl.abort(), this.opts.timeout);
+    const t0 = performance.now();
+    try {
+      const res = await fetch(this.proxied(url), { signal: ctrl.signal, redirect: 'follow' });
+      const type = res.headers.get('content-type') || '';
+      const text = await res.text();
+      return { status: res.status, ok: res.ok, type, text, ms: Math.round(performance.now() - t0) };
+    } finally {
+      clearTimeout(timer);
+      this.controllers.delete(ctrl);
+    }
+  }
+
+  /* ---------- palavras-chave ---------- */
+
+  buildMatchers() {
+    const flags = 'gu' + (this.opts.caseSensitive ? '' : 'i');
+    const kws = [...new Set(this.opts.keywords.map((k) => k.trim()).filter(Boolean))];
+    return kws.map((kw) => {
+      // espaços na expressão aceitam qualquer espaço em branco
+      let src = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      if (this.opts.wholeWord) src = `(?<![\\p{L}\\p{N}_])${src}(?![\\p{L}\\p{N}_])`;
+      this.keywordTotals[kw] = 0;
+      this.keywordPages[kw] = 0;
+      return { kw, re: new RegExp(src, flags) };
+    });
+  }
+
+  findKeywords(text) {
+    const hits = {};
+    const snippets = {};
+    let total = 0;
+    for (const { kw, re } of this.matchers) {
+      re.lastIndex = 0;
+      let count = 0;
+      const snips = [];
+      let m;
+      while ((m = re.exec(text))) {
+        count++;
+        if (snips.length < this.opts.snippetsPerKeyword) {
+          const a = Math.max(0, m.index - 70);
+          const b = Math.min(text.length, m.index + m[0].length + 70);
+          snips.push({
+            before: (a > 0 ? '…' : '') + text.slice(a, m.index),
+            match: m[0],
+            after: text.slice(m.index + m[0].length, b) + (b < text.length ? '…' : ''),
+          });
+        }
+        if (m[0].length === 0) re.lastIndex++;
+      }
+      if (count) {
+        hits[kw] = count;
+        snippets[kw] = snips;
+        total += count;
+      }
+    }
+    return { hits, snippets, total };
+  }
+
+  /* ---------- robots.txt ---------- */
+
+  async loadRobots(origin) {
+    if (this.robotsRules.has(origin)) return this.robotsRules.get(origin);
+    let rules = [];
+    try {
+      const r = await this.fetchText(origin + '/robots.txt');
+      if (r.ok) rules = this.parseRobots(r.text);
+      this.onLog(`robots.txt de ${origin}: ${rules.length} regras`);
+    } catch {
+      this.onLog(`robots.txt de ${origin} indisponível — a continuar sem regras`);
+    }
+    this.robotsRules.set(origin, rules);
+    return rules;
+  }
+
+  parseRobots(txt) {
+    // Usa só os grupos "User-agent: *"
+    const rules = [];
+    let applies = false;
+    let lastWasAgent = false;
+    for (let line of txt.split(/\r?\n/)) {
+      line = line.replace(/#.*/, '').trim();
+      if (!line) continue;
+      const idx = line.indexOf(':');
+      if (idx < 0) continue;
+      const key = line.slice(0, idx).trim().toLowerCase();
+      const val = line.slice(idx + 1).trim();
+      if (key === 'user-agent') {
+        if (!lastWasAgent) applies = false;
+        if (val === '*') applies = true;
+        lastWasAgent = true;
+        continue;
+      }
+      lastWasAgent = false;
+      if (!applies) continue;
+      if ((key === 'allow' || key === 'disallow') && val) {
+        rules.push({ allow: key === 'allow', path: val });
+      }
+    }
+    return rules;
+  }
+
+  robotsAllows(url, rules) {
+    const u = new URL(url);
+    const path = u.pathname + u.search;
     let best = null;
-    for (const st of origins.values()) {
-      if (!st.queue.length || st.taken >= maxPages || now < st.next) continue;
-      st.queue.sort((a, b) => b.score - a.score);
-      if (!best || st.queue[0].score > best.queue[0].score) best = st;
+    for (const r of rules) {
+      const re = new RegExp(
+        '^' + r.path.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$')
+      );
+      if (re.test(path) && (!best || r.path.length > best.path.length)) best = r;
     }
-    if (!best) return null;
-    best.taken++; best.next = now + delay; // limite de ritmo por site
-    return { st: best, ...best.queue.shift() };
+    return !best || best.allow;
   }
 
-  async function visit({ st, url, depth }, page, animate) {
-    if (st.robots && st.robots.isAllowed(url, UA) === false) { st.taken--; return; }
-    let resp;
-    for (let attempt = 0; attempt < 2 && !resp; attempt++) {
-      try { resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 }); } catch { await sleep(800); }
-    }
-    if (!resp || resp.status() >= 400 || !/html/i.test(resp.headers()['content-type'] || '')) {
-      emit({ type: 'status', message: `Ignorada (${resp ? resp.status() : 'sem resposta'}): ${url}` });
-      return;
-    }
-    await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
-    const meta = await pageMeta(page);
-    const key = meta.canonical ? cleanUrl(meta.canonical) : url;
-    if (st.visited.has(key)) return; // mesmo conteúdo com outro URL
-    st.visited.add(key); st.visited.add(url);
-    visited++;
-    emit({ type: 'visit', url, title: await page.title(), ...stats() });
+  /* ---------- parsing ---------- */
 
-    if (st.consentChecks < 3) { st.consentChecks++; await dismissConsent(page, consent); }
-    if (animate) { await ensureCursor(page); await scrollDown(page, fast ? 2 : 5); } else await autoScroll(page, fast ? 2 : 4);
+  parse(html, baseUrl) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const baseEl = doc.querySelector('base[href]');
+    const base = baseEl ? this.normalize(baseEl.getAttribute('href'), baseUrl) || baseUrl : baseUrl;
 
-    const a = await analyzePage(page, { include, exclude, highlight: animate });
-    const found = include.filter((t) => a.counts[t.label] > 0).length;
-    const ok = !a.excluded && found > 0 && (match === 'all' ? found === include.length : true);
-    if (ok) {
-      const title = norm(a.title), heads = norm(a.headings), u = norm(decodeURI(url));
-      let score = 0;
-      for (const t of include) {
-        const c = a.counts[t.label];
-        if (c) score += Math.min(c, 10) + 1 + (title.includes(t.n) ? 15 : 0) + (heads.includes(t.n) ? 8 : 0) + (u.includes(t.n) ? 5 : 0);
+    const links = new Set();
+    doc.querySelectorAll('a[href]').forEach((a) => {
+      const rel = (a.getAttribute('rel') || '').toLowerCase();
+      if (rel.includes('nofollow')) return;
+      const n = this.normalize(a.getAttribute('href'), base);
+      if (n) links.add(n);
+    });
+
+    const meta = (name) =>
+      doc.querySelector(`meta[name="${name}"]`)?.getAttribute('content')?.trim() || '';
+
+    const title = doc.querySelector('title')?.textContent.trim() || '';
+    const description = meta('description');
+
+    // texto visível: sem scripts, estilos, etc.
+    doc.querySelectorAll('script, style, noscript, template, svg, iframe').forEach((n) => n.remove());
+    const bodyText = (doc.body?.textContent || '').replace(/\s+/g, ' ').trim();
+    const searchable = [title, description, bodyText].filter(Boolean).join(' · ');
+    const kw = this.findKeywords(searchable);
+
+    return {
+      title,
+      description,
+      keywordHits: kw.hits,
+      keywordSnippets: kw.snippets,
+      keywordTotal: kw.total,
+      h1: [...doc.querySelectorAll('h1')].map((h) => h.textContent.trim()).filter(Boolean),
+      canonical: doc.querySelector('link[rel="canonical"]')?.getAttribute('href') || '',
+      robotsMeta: meta('robots'),
+      images: doc.querySelectorAll('img').length,
+      wordCount: bodyText ? bodyText.split(' ').length : 0,
+      links: [...links],
+    };
+  }
+
+  /* ---------- ciclo principal ---------- */
+
+  enqueue(url, depth, from) {
+    if (this.seen.has(url)) return;
+    if (this.seen.size >= this.opts.maxPages) return;
+    if (depth > this.opts.maxDepth) return;
+    if (this.opts.sameDomain && !this.startHosts.has(this.hostKey(url))) return;
+    this.seen.add(url);
+    this.queue.push({ url, depth, from });
+  }
+
+  async start() {
+    const starts = this.opts.startUrls
+      .map((u) => u.trim())
+      .filter(Boolean)
+      .map((u) => this.normalize(/^https?:\/\//i.test(u) ? u : 'https://' + u))
+      .filter(Boolean);
+    if (!starts.length) throw new Error('Indique pelo menos um site válido');
+
+    // example.com e www.example.com contam como o mesmo site
+    this.startHosts = new Set(starts.map((u) => this.hostKey(u)));
+    this.running = true;
+    this.onLog(`A iniciar em: ${starts.join(', ')}`);
+    if (this.matchers.length) {
+      this.onLog(`Palavras-chave: ${this.matchers.map((m) => m.kw).join(', ')}`);
+    }
+    // os sites iniciais contam sempre, mesmo que excedam maxPages
+    for (const s of starts) {
+      if (!this.seen.has(s)) {
+        this.seen.add(s);
+        this.queue.push({ url: s, depth: 0, from: null });
       }
-      const hit = { url, title: a.title, score, counts: a.counts, matches: a.snippets, description: meta.description, data: meta.data };
-      results.push(hit);
-      emit({ type: 'hit', ...hit });
     }
 
-    if (depth < maxDepth) {
-      const links = await page.evaluate(() => [...document.querySelectorAll('a[href]')].map((x) => ({
-        href: x.href, text: (x.innerText || x.getAttribute('aria-label') || '').trim().slice(0, 120) })));
-      for (const l of links) {
-        try {
-          if (!/^https?:/.test(l.href)) continue;
-          const href = cleanUrl(l.href), p = new URL(href);
-          if (p.origin !== st.origin || SKIP.test(href) || JUNK.test(p.pathname) || st.known.has(href)) continue;
-          enqueue(st, href, urlScore(href, l.text, include) + (ok ? 2 : 0), depth + 1, l.href);
-        } catch {}
+    const workers = Array.from({ length: this.opts.concurrency }, () => this.worker());
+    await Promise.all(workers);
+
+    this.running = false;
+    this.onLog(`Terminado: ${this.results.length} páginas, ${this.errors} erros`);
+    this.onDone(this.results);
+  }
+
+  async worker() {
+    while (this.running) {
+      const job = this.queue.shift();
+      if (!job) {
+        // fila vazia: termina se ninguém estiver a trabalhar
+        if (this.active === 0) return;
+        await this.sleep(100);
+        continue;
+      }
+      this.active++;
+      try {
+        await this.visit(job);
+      } finally {
+        this.active--;
+        this.onProgress(this.stats());
+      }
+      if (this.opts.delay) await this.sleep(this.opts.delay);
+    }
+  }
+
+  async visit({ url, depth, from }) {
+    const row = { url, depth, from, status: null, title: '', links: [], ms: 0, error: '' };
+
+    try {
+      if (this.opts.respectRobots) {
+        const origin = new URL(url).origin;
+        const rules = await this.loadRobots(origin);
+        if (!this.robotsAllows(url, rules)) {
+          row.status = 'robots';
+          row.error = 'Bloqueado por robots.txt';
+          this.push(row);
+          return;
+        }
+      }
+
+      const r = await this.fetchText(url);
+      row.status = r.status;
+      row.ms = r.ms;
+      row.contentType = r.type;
+
+      if (!r.ok) {
+        row.error = `HTTP ${r.status}`;
+        this.errors++;
+      } else if (!r.type || r.type.includes('html')) {
+        Object.assign(row, this.parse(r.text, url));
+        if (!/nofollow/i.test(row.robotsMeta || '')) {
+          for (const link of row.links) this.enqueue(link, depth + 1, url);
+        }
+      }
+    } catch (e) {
+      row.status = 'erro';
+      row.error = e.name === 'AbortError' ? (this.running ? 'Timeout' : 'Cancelado') : e.message;
+      this.errors++;
+    }
+    this.push(row);
+  }
+
+  push(row) {
+    if (row.keywordTotal) {
+      this.pagesWithMatches++;
+      for (const [kw, n] of Object.entries(row.keywordHits)) {
+        this.keywordTotals[kw] += n;
+        this.keywordPages[kw]++;
       }
     }
-
-    if (animate) { // a aranha caminha até ao próximo link
-      st.queue.sort((x, y) => y.score - x.score);
-      const next = st.queue[0]?.raw;
-      const pos = next && await page.evaluate((href) => {
-        const el = [...document.querySelectorAll('a[href]')].find((x) => x.href === href);
-        if (!el) return null;
-        el.scrollIntoView({ block: 'center' });
-        const r = el.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-      }, next);
-      if (pos) await moveCursor(page, pos.x, pos.y);
-    }
+    this.results.push(row);
+    this.onResult(row, this.results.length);
+    if (row.error) this.onLog(`✗ ${row.url} — ${row.error}`);
   }
 
-  async function worker(i) {
-    while (!stopped()) {
-      const job = take();
-      if (!job) { if (!inflight && !pending()) break; await sleep(150); continue; }
-      inflight++;
-      try { await visit(job, pages[i], i === 0); }
-      catch (e) { emit({ type: 'status', message: `Erro em ${job.url}: ${e.message.split('\n')[0]}` }); }
-      finally { inflight--; }
-    }
+  stop() {
+    this.running = false;
+    this.queue = [];
+    this.controllers.forEach((c) => c.abort());
+    this.onLog('Parado pelo utilizador');
   }
 
-  try {
-    const byOrigin = new Map();
-    for (const s of sites) byOrigin.set(new URL(s).origin, [...(byOrigin.get(new URL(s).origin) || []), s]);
-    await Promise.all([...byOrigin].map(([o, list]) => initOrigin(o, list)));
-    emit({ type: 'status', message: 'A pesquisar…' });
-    await Promise.all(pages.map((_, i) => worker(i)));
-  } finally {
-    clearInterval(timer);
-    await browser.close();
+  stats() {
+    const allLinks = new Set();
+    this.results.forEach((r) => r.links?.forEach((l) => allLinks.add(l)));
+    return {
+      crawled: this.results.length,
+      queued: this.queue.length,
+      errors: this.errors,
+      links: allLinks.size,
+      matches: this.pagesWithMatches,
+      keywordTotals: this.keywordTotals,
+      keywordPages: this.keywordPages,
+    };
   }
-  results.sort((a, b) => b.score - a.score);
-  const reason = signal.aborted ? 'parado' : results.length >= maxHits ? 'limite de resultados' : Date.now() > deadline ? 'tempo limite' : 'concluído';
-  return { results, ...stats(), reason };
 }
