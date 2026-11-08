@@ -11,16 +11,28 @@
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#060816">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Crawler">
 </head>
 <body>
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="grain" aria-hidden="true"></div>
+
   <header>
-    <h1><img src="icons/logo.svg" alt="" class="logo"> Web Crawler</h1>
-    <p class="sub">Crawler 100% no browser — corre em GitHub Pages.</p>
+    <div>
+      <h1><img src="icons/logo.svg" alt="" class="logo"> <span class="title">Web Crawler</span></h1>
+      <p class="sub">Explora sites e encontra palavras-chave — direto no browser.</p>
+    </div>
+    <div class="palette" role="group" aria-label="Cores do fundo">
+      <button type="button" data-p="aurora" title="Aurora" aria-label="Aurora"></button>
+      <button type="button" data-p="sunset" title="Pôr do sol" aria-label="Pôr do sol"></button>
+      <button type="button" data-p="ocean" title="Oceano" aria-label="Oceano"></button>
+      <button type="button" data-p="mint" title="Menta" aria-label="Menta"></button>
+    </div>
   </header>
 
   <main>
@@ -125,6 +137,7 @@
     </section>
   </main>
 
+  <script src="bg.js"></script>
   <script src="crawler.js"></script>
   <script src="app.js"></script>
 </body>
