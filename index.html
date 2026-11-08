@@ -53,6 +53,27 @@
         </div>
 
         <label>
+          Preço mínimo (€)
+          <input type="number" id="minPrice" min="0" step="0.01" inputmode="decimal" placeholder="—">
+        </label>
+        <label>
+          Preço máximo (€)
+          <input type="number" id="maxPrice" min="0" step="0.01" inputmode="decimal" placeholder="—">
+        </label>
+        <label>
+          Desconto mínimo (%)
+          <input type="number" id="minDiscount" min="0" max="99" step="1" inputmode="numeric" placeholder="—">
+        </label>
+        <label>
+          Screenshot de cada produto
+          <select id="shotService">
+            <option value="mshots">WordPress mShots (grátis)</option>
+            <option value="thumio">thum.io (grátis)</option>
+            <option value="none">Desligado</option>
+          </select>
+        </label>
+
+        <label>
           Máx. páginas
           <input type="number" id="maxPages" value="50" min="1" max="5000">
         </label>
@@ -72,15 +93,16 @@
         <label class="full">
           Proxy CORS
           <select id="proxy">
-            <option value="https://api.allorigins.win/raw?url={url}">allorigins.win</option>
-            <option value="https://corsproxy.io/?url={url}">corsproxy.io</option>
-            <option value="https://api.codetabs.com/v1/proxy?quest={url}">codetabs.com</option>
-            <option value="{url}">Nenhum (só sites com CORS aberto)</option>
-            <option value="custom">Personalizado…</option>
+            <option value="auto">Automático — tenta vários até um funcionar</option>
+            <option value="allorigins">allorigins.win</option>
+            <option value="codetabs">codetabs.com</option>
+            <option value="corsproxy.io">corsproxy.io</option>
+            <option value="none">Nenhum (só sites com CORS aberto)</option>
+            <option value="custom">Só o meu proxy</option>
           </select>
         </label>
-        <label class="full hidden" id="customProxyWrap">
-          Proxy personalizado (use <code>{url}</code> como marcador)
+        <label class="full" id="customProxyWrap">
+          O meu proxy <small>(opcional; use <code>{url}</code> como marcador — no modo automático é tentado primeiro)</small>
           <input type="text" id="customProxy" placeholder="https://meu-proxy.workers.dev/?url={url}">
         </label>
 
@@ -88,13 +110,15 @@
           <label><input type="checkbox" id="sameDomain" checked> Ficar dentro dos sites indicados</label>
           <label><input type="checkbox" id="respectRobots" checked> Respeitar robots.txt</label>
           <label><input type="checkbox" id="stripQuery"> Ignorar query strings (?a=b)</label>
+          <label><input type="checkbox" id="notify" checked> Notificar quando terminar</label>
         </div>
 
         <div class="buttons full">
           <button type="submit" id="startBtn">▶ Iniciar</button>
           <button type="button" id="stopBtn" disabled>■ Parar</button>
           <button type="button" id="exportJson" disabled>⬇ JSON</button>
-          <button type="button" id="exportCsv" disabled>⬇ CSV</button>
+          <button type="button" id="exportCsv" disabled>⬇ CSV páginas</button>
+          <button type="button" id="exportItems" disabled>⬇ CSV produtos</button>
         </div>
       </form>
     </section>
@@ -102,10 +126,24 @@
     <section class="stats">
       <div><span id="statCrawled">0</span><small>visitadas</small></div>
       <div><span id="statQueued">0</span><small>em fila</small></div>
+      <div class="hl"><span id="statItems">0</span><small>produtos encontrados</small></div>
       <div><span id="statMatches">0</span><small>com palavras-chave</small></div>
       <div><span id="statErrors">0</span><small>erros</small></div>
       <div><span id="statLinks">0</span><small>links únicos</small></div>
       <div><span id="statStatus">parado</span><small>estado</small></div>
+    </section>
+
+    <section class="panel hidden" id="itemsPanel">
+      <div class="toolbar">
+        <h2 style="margin:0;flex:1">Produtos encontrados</h2>
+        <select id="itemSort" aria-label="Ordenar">
+          <option value="found">Ordem em que foram encontrados</option>
+          <option value="discount">Maior desconto</option>
+          <option value="priceAsc">Preço mais baixo</option>
+          <option value="priceDesc">Preço mais alto</option>
+        </select>
+      </div>
+      <div id="items" class="items"></div>
     </section>
 
     <section class="panel hidden" id="kwPanel">
@@ -136,6 +174,8 @@
       <pre id="log"></pre>
     </section>
   </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="bg.js"></script>
   <script src="crawler.js"></script>

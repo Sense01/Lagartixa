@@ -1,47 +1,18 @@
-# 🕷️ Web Crawler (GitHub Pages)
+# O teu próprio proxy (Cloudflare Worker, grátis)
 
-Crawler que corre inteiramente no browser — HTML, CSS e JavaScript puros, sem build nem backend.
+Os proxies públicos (allorigins, codetabs, corsproxy.io) caem com frequência e muitos sites bloqueiam-nos.
+Um Worker teu é mais rápido e estável. Demora ~5 minutos:
 
-## Funcionalidades
+1. Cria conta em <https://dash.cloudflare.com> (grátis).
+2. **Workers & Pages → Create → Create Worker** → dá um nome (ex.: `crawler-proxy`) → **Deploy**.
+3. **Edit code**, apaga tudo, cola o conteúdo de `cloudflare-worker.js`.
+4. Em `ALLOWED_ORIGINS`, troca `https://SEU-UTILIZADOR.github.io` pelo endereço do teu GitHub Pages
+   (só o domínio, sem `/repositorio`). → **Deploy**.
+5. Na app, em **O meu proxy**, escreve:
+   `https://crawler-proxy.<a-tua-conta>.workers.dev/?url={url}`
+   e deixa o modo **Automático** (o teu proxy é tentado primeiro) ou escolhe **Só o meu proxy**.
 
-- Um ou vários sites de partida (um por linha)
-- Pesquisa de palavras-chave/expressões: contagem por página, trechos com a palavra destacada,
-  resumo por palavra (clicar filtra a tabela), opções "palavra inteira" e "maiúsculas/minúsculas"
-- Link direto com parâmetros: `?site=example.com&kw=preço,promoção`
-- Ícone para o iPhone: Safari → Partilhar → **Adicionar ao ecrã principal** (abre como app, em ecrã inteiro)
-- Crawl em largura (BFS) a partir dos sites indicados
-- Limites de páginas, profundidade, pedidos em paralelo e pausa entre pedidos
-- Restrição ao mesmo domínio (opcional)
-- Respeita `robots.txt` (grupo `User-agent: *`), `rel="nofollow"` e `<meta name="robots" content="nofollow">`
-- Extrai: título, meta description, H1, canonical, nº de imagens, nº de palavras, links
-- Filtro de resultados, exportação para JSON e CSV
-- Definições guardadas no browser (localStorage)
+Teste rápido no browser: `https://crawler-proxy.<a-tua-conta>.workers.dev/?url=https://example.com`
 
-## Publicar no GitHub Pages
-
-1. Cria um repositório e coloca lá o conteúdo todo desta pasta (incluindo `icons/`, `manifest.json`
-   e `apple-touch-icon.png`) na raiz.
-2. Em **Settings → Pages**, escolhe **Deploy from a branch**, branch `main`, pasta `/ (root)`.
-3. Passado um minuto, o site fica em `https://<utilizador>.github.io/<repositório>/`.
-
-Para testar localmente: `python3 -m http.server` na pasta e abre `http://localhost:8000`.
-
-## Porque é que há um proxy CORS?
-
-O GitHub Pages só serve ficheiros estáticos, e o browser bloqueia (CORS) pedidos `fetch` a outros
-domínios que não o permitam explicitamente. Por isso os pedidos passam por um proxy CORS público
-(allorigins, corsproxy.io, codetabs).
-
-Os proxies públicos são práticos para testar, mas têm limites de pedidos e podem falhar. Para uso sério,
-cria o teu próprio proxy — por exemplo um Cloudflare Worker gratuito — e escolhe **Personalizado…**
-com algo como `https://meu-proxy.workers.dev/?url={url}`.
-
-## Estrutura
-
-| Ficheiro     | Conteúdo                                  |
-|--------------|-------------------------------------------|
-| `index.html` | Interface                                 |
-| `style.css`  | Estilos                                   |
-| `crawler.js` | Classe `Crawler` (fila, fetch, parsing, robots.txt) |
-| `app.js`     | Ligação entre a interface e o crawler     |
-| `manifest.json`, `apple-touch-icon.png`, `icons/` | Logo e modo app (iPhone / Android) |
+> Nota: alguns sites grandes (ex.: com proteção anti-bot Akamai/Cloudflare) também podem bloquear
+> os servidores da Cloudflare. Se isso acontecer, o erro aparece na tabela e no log.

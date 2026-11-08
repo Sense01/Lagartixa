@@ -2,16 +2,15 @@ const $ = (id) => document.getElementById(id);
 
 let crawler = null;
 let results = [];
-let kwFilter = null; // palavra-chave selecionada no resumo
+let items = [];
+let kwFilter = null;
 
-/* ---------- proxy personalizado ---------- */
-$('proxy').addEventListener('change', () => {
-  $('customProxyWrap').classList.toggle('hidden', $('proxy').value !== 'custom');
-});
-
-/* ---------- guardar/carregar definições ---------- */
-const FIELDS = ['sites', 'keywords', 'maxPages', 'maxDepth', 'concurrency', 'delay', 'proxy', 'customProxy'];
-const CHECKS = ['sameDomain', 'respectRobots', 'stripQuery', 'wholeWord', 'caseSensitive'];
+/* =========================================================
+   Definições
+   ========================================================= */
+const FIELDS = ['sites', 'keywords', 'maxPages', 'maxDepth', 'concurrency', 'delay', 'proxy', 'customProxy',
+  'minPrice', 'maxPrice', 'minDiscount', 'shotService'];
+const CHECKS = ['sameDomain', 'respectRobots', 'stripQuery', 'wholeWord', 'caseSensitive', 'notify'];
 
 function saveSettings() {
   const s = {};
@@ -23,24 +22,54 @@ function saveSettings() {
 function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('crawler-settings') || '{}');
-    FIELDS.forEach((f) => s[f] != null && ($(f).value = s[f]));
+    // versões antigas guardavam o URL do proxy no seletor
+    if (s.proxy && s.proxy.includes('://')) s.proxy = 'auto';
+    FIELDS.forEach((f) => {
+      const el = $(f);
+      if (s[f] == null) return;
+      if (el.tagName === 'SELECT' && ![...el.options].some((o) => o.value === s[f])) return;
+      el.value = s[f];
+    });
     CHECKS.forEach((c) => s[c] != null && ($(c).checked = s[c]));
   } catch {}
-  // permite links do tipo ?site=example.com&kw=preço,promoção
+  // ?site=…&kw=…&min=…&max=…&desc=…
   const p = new URLSearchParams(location.search);
   if (p.get('site')) $('sites').value = p.getAll('site').join('\n');
   if (p.get('kw')) $('keywords').value = p.getAll('kw').join('\n');
-  $('proxy').dispatchEvent(new Event('change'));
+  if (p.get('min')) $('minPrice').value = p.get('min');
+  if (p.get('max')) $('maxPrice').value = p.get('max');
+  if (p.get('desc')) $('minDiscount').value = p.get('desc');
 }
 loadSettings();
 
 const splitList = (txt, re) => txt.split(re).map((s) => s.trim()).filter(Boolean);
+const numOrNull = (v) => (v === '' || v == null || isNaN(+v) ? null : +v);
 
-/* ---------- UI ---------- */
+function buildProxyList() {
+  const mode = $('proxy').value;
+  const custom = $('customProxy').value.trim();
+  const mine = custom ? [{ name: 'o meu proxy', tpl: custom }] : [];
+  if (mode === 'none') return [{ name: 'direto', tpl: '{url}' }];
+  if (mode === 'custom') return mine;
+  if (mode === 'auto') return [...mine, ...PUBLIC_PROXIES];
+  return PUBLIC_PROXIES.filter((p) => p.name === mode);
+}
+
+/* =========================================================
+   UI básica
+   ========================================================= */
 function log(msg) {
   const t = new Date().toLocaleTimeString();
   $('log').textContent += `[${t}] ${msg}\n`;
   $('log').scrollTop = $('log').scrollHeight;
+}
+
+function toast(msg, ms = 4000) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 function statusClass(s) {
@@ -56,27 +85,38 @@ function esc(str) {
   );
 }
 
+const fmtPrice = (v, cur = '€') =>
+  v == null ? '' : `${v.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+
+/* =========================================================
+   Tabela de páginas
+   ========================================================= */
 function keywordCell(r) {
   const hits = r.keywordHits || {};
   const kws = Object.keys(hits);
-  if (!kws.length) return '';
+  let html = '';
+  if (r.productsFound) {
+    html += `<span class="tag tag-prod">${r.items?.length || 0}/${r.productsFound} produtos</span>`;
+  }
+  if (!kws.length) return html;
   const tags = kws.map((k) => `<span class="tag">${esc(k)} × ${hits[k]}</span>`).join('');
   const snips = kws
-    .flatMap((k) => (r.keywordSnippets[k] || []).map(
+    .flatMap((k) => (r.keywordSnippets?.[k] || []).map(
       (s) => `<p class="snip">${esc(s.before)}<mark>${esc(s.match)}</mark>${esc(s.after)}</p>`
     ))
     .join('');
-  return `<details><summary>${tags}</summary>${snips}</details>`;
+  return html + `<details><summary>${tags}</summary>${snips}</details>`;
 }
 
 function addRow(r, i) {
   const tr = document.createElement('tr');
-  tr.dataset.search = `${r.url} ${r.title} ${r.status}`.toLowerCase();
+  tr.dataset.search = `${r.url} ${r.title} ${r.status} ${r.error}`.toLowerCase();
   tr.dataset.kws = JSON.stringify(Object.keys(r.keywordHits || {}));
+  tr.dataset.items = r.items?.length || 0;
   tr.innerHTML = `
     <td class="num">${i}</td>
     <td class="url"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></td>
-    <td class="${statusClass(r.status)}">${esc(r.status)}${r.error && typeof r.status !== 'number' ? ' — ' + esc(r.error) : ''}</td>
+    <td class="${statusClass(r.status)} status">${esc(r.status)}${r.error && typeof r.status !== 'number' ? ' — ' + esc(r.error) : ''}</td>
     <td>${esc(r.title)}</td>
     <td class="kw">${keywordCell(r)}</td>
     <td class="num">${r.depth}</td>
@@ -86,6 +126,22 @@ function addRow(r, i) {
   $('results').appendChild(tr);
 }
 
+function applyFilter(tr) {
+  const q = $('filter').value.trim().toLowerCase();
+  const kws = JSON.parse(tr.dataset.kws);
+  const show =
+    (!q || tr.dataset.search.includes(q)) &&
+    (!$('onlyMatches').checked || kws.length > 0 || +tr.dataset.items > 0) &&
+    (!kwFilter || kws.includes(kwFilter));
+  tr.style.display = show ? '' : 'none';
+}
+const refilter = () => document.querySelectorAll('#results tr').forEach(applyFilter);
+$('filter').addEventListener('input', refilter);
+$('onlyMatches').addEventListener('change', refilter);
+
+/* =========================================================
+   Resumo de palavras-chave e estatísticas
+   ========================================================= */
 function renderKeywordSummary(s) {
   const kws = Object.keys(s.keywordTotals || {});
   $('kwPanel').classList.toggle('hidden', !kws.length);
@@ -105,11 +161,13 @@ $('kwSummary').addEventListener('click', (e) => {
   kwFilter = kwFilter === card.dataset.kw ? null : card.dataset.kw;
   if (crawler) renderKeywordSummary(crawler.stats());
   refilter();
+  renderItems();
 });
 
 function updateStats(s, state) {
   $('statCrawled').textContent = s.crawled;
   $('statQueued').textContent = s.queued;
+  $('statItems').textContent = s.items;
   $('statMatches').textContent = s.matches;
   $('statErrors').textContent = s.errors;
   $('statLinks').textContent = s.links;
@@ -117,72 +175,402 @@ function updateStats(s, state) {
   renderKeywordSummary(s);
 }
 
-function applyFilter(tr) {
-  const q = $('filter').value.trim().toLowerCase();
-  const kws = JSON.parse(tr.dataset.kws);
-  const show =
-    (!q || tr.dataset.search.includes(q)) &&
-    (!$('onlyMatches').checked || kws.length > 0) &&
-    (!kwFilter || kws.includes(kwFilter));
-  tr.style.display = show ? '' : 'none';
+/* =========================================================
+   Produtos encontrados + screenshots
+   ========================================================= */
+function screenshotUrl(url) {
+  switch ($('shotService').value) {
+    case 'mshots': return `https://s.wordpress.com/mshots/v1/${encodeURIComponent(url)}?w=1200&h=900`;
+    case 'thumio': return `https://image.thum.io/get/width/1200/crop/900/noanimate/${url}`;
+    default: return '';
+  }
 }
-const refilter = () => document.querySelectorAll('#results tr').forEach(applyFilter);
-$('filter').addEventListener('input', refilter);
-$('onlyMatches').addEventListener('change', refilter);
 
+// O mShots devolve uma imagem provisória (400×300) enquanto gera a captura: voltamos a pedir.
+function watchShot(img) {
+  img.addEventListener('load', () => {
+    const tries = +(img.dataset.tries || 0);
+    if ($('shotService').value === 'mshots' && img.naturalWidth === 400 && img.naturalHeight === 300 && tries < 8) {
+      img.dataset.tries = tries + 1;
+      img.closest('.shot')?.classList.add('loading');
+      setTimeout(() => (img.src = img.dataset.src + `&r=${Date.now()}`), 3500);
+    } else {
+      img.closest('.shot')?.classList.remove('loading');
+      img.closest('.shot')?.classList.add('ready');
+    }
+  });
+  img.addEventListener('error', () => img.closest('.shot')?.classList.add('failed'));
+}
+
+function itemCard(it, idx) {
+  const shot = screenshotUrl(it.url);
+  const kws = Object.keys(it.keywordHits || {});
+  const div = document.createElement('article');
+  div.className = 'item';
+  div.dataset.idx = idx;
+  div.innerHTML = `
+    <div class="shot loading">
+      ${it.image ? `<img class="prod-img" src="${esc(it.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+      ${shot ? `<img class="page-shot" data-src="${esc(shot)}" src="${esc(shot)}" alt="Screenshot da página do produto" loading="lazy">` : ''}
+      ${it.discount != null ? `<span class="badge">-${it.discount}%</span>` : ''}
+    </div>
+    <div class="item-body">
+      ${it.brand ? `<div class="brand">${esc(it.brand)}</div>` : ''}
+      <div class="name">${esc(it.name || 'Sem nome')}</div>
+      <div class="prices">
+        <span class="price">${fmtPrice(it.price, it.currency)}</span>
+        ${it.oldPrice != null ? `<s>${fmtPrice(it.oldPrice, it.currency)}</s>` : ''}
+      </div>
+      ${kws.length ? `<div>${kws.map((k) => `<span class="tag">${esc(k)}</span>`).join('')}</div>` : ''}
+      <div class="item-actions">
+        <a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Abrir ↗</a>
+        <button type="button" class="save-card">📸 Guardar</button>
+        ${shot ? `<a class="btn" href="${esc(shot)}" target="_blank" rel="noopener">Página</a>` : ''}
+      </div>
+    </div>`;
+  div.querySelectorAll('img.page-shot').forEach(watchShot);
+  if (!shot) div.querySelector('.shot').classList.remove('loading');
+  return div;
+}
+
+function sortedItems() {
+  const list = items.map((it, i) => ({ it, i }))
+    .filter(({ it }) => !kwFilter || it.keywordHits?.[kwFilter]);
+  const by = $('itemSort').value;
+  const val = (v, d) => (v == null ? d : v);
+  if (by === 'discount') list.sort((a, b) => val(b.it.discount, -1) - val(a.it.discount, -1));
+  if (by === 'priceAsc') list.sort((a, b) => val(a.it.price, Infinity) - val(b.it.price, Infinity));
+  if (by === 'priceDesc') list.sort((a, b) => val(b.it.price, -1) - val(a.it.price, -1));
+  return list;
+}
+
+function renderItems() {
+  $('itemsPanel').classList.toggle('hidden', !items.length);
+  const box = $('items');
+  box.innerHTML = '';
+  sortedItems().forEach(({ it, i }) => box.appendChild(itemCard(it, i)));
+}
+$('itemSort').addEventListener('change', renderItems);
+
+function appendItem(it, n) {
+  $('itemsPanel').classList.remove('hidden');
+  if ($('itemSort').value !== 'found' || kwFilter) return renderItemsThrottled();
+  $('items').appendChild(itemCard(it, n - 1));
+}
+let rt = 0;
+function renderItemsThrottled() {
+  clearTimeout(rt);
+  rt = setTimeout(renderItems, 400);
+}
+
+$('items').addEventListener('click', (e) => {
+  const btn = e.target.closest('.save-card');
+  if (!btn) return;
+  const it = items[+btn.closest('.item').dataset.idx];
+  btn.disabled = true;
+  saveItemImage(it).finally(() => (btn.disabled = false));
+});
+
+/* ---------- imagem PNG de um produto (cartão gerado no próprio browser) ---------- */
+function loadImage(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+}
+
+async function loadProductImage(url) {
+  if (!url) return null;
+  try { return await loadImage(url); } catch {}
+  // sem CORS direto → tenta via proxy
+  for (const p of buildProxyList()) {
+    try {
+      const target = p.tpl === '{url}' ? url : p.tpl.replace('{url}', encodeURIComponent(url)).replace('{rawurl}', url);
+      const blob = await (await fetch(target)).blob();
+      if (!blob.type.startsWith('image/')) continue;
+      return await loadImage(URL.createObjectURL(blob));
+    } catch {}
+  }
+  return null;
+}
+
+function wrapText(ctx, text, maxW, maxLines) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && line) {
+      lines.push(line);
+      line = w;
+      if (lines.length === maxLines) break;
+    } else line = t;
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length) {
+    lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…';
+  }
+  return lines;
+}
+
+async function saveItemImage(it) {
+  const W = 1080, H = 1350;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const css = getComputedStyle(document.documentElement);
+  const a1 = css.getPropertyValue('--accent').trim() || '#8ab4ff';
+  const a2 = css.getPropertyValue('--accent-2').trim() || '#d58bff';
+
+  // fundo: manchas de cor com a paleta atual (imitam o fundo fluido)
+  ctx.fillStyle = '#070a1c';
+  ctx.fillRect(0, 0, W, H);
+  [[0.15, 0.1, a2], [0.9, 0.35, a1], [0.3, 0.95, a1], [0.85, 0.95, a2]].forEach(([fx, fy, col]) => {
+    const g = ctx.createRadialGradient(fx * W, fy * H, 0, fx * W, fy * H, W * 0.75);
+    g.addColorStop(0, col + 'cc');
+    g.addColorStop(1, col + '00');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  });
+  ctx.fillStyle = 'rgba(6,8,22,0.3)';
+  ctx.fillRect(0, 0, W, H);
+
+  // cartão de vidro
+  const r = 48, x = 60, y = 60, w = W - 120, h = H - 120;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // imagem do produto
+  const img = await loadProductImage(it.image);
+  const imgBox = { x: x + 40, y: y + 40, w: w - 80, h: 620 };
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(imgBox.x, imgBox.y, imgBox.w, imgBox.h, 32);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.clip();
+  if (img) {
+    const s = Math.min(imgBox.w / img.width, imgBox.h / img.height) * 0.9;
+    const iw = img.width * s, ih = img.height * s;
+    ctx.drawImage(img, imgBox.x + (imgBox.w - iw) / 2, imgBox.y + (imgBox.h - ih) / 2, iw, ih);
+  } else {
+    ctx.fillStyle = '#9aa3b5';
+    ctx.font = '600 36px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Imagem indisponível', imgBox.x + imgBox.w / 2, imgBox.y + imgBox.h / 2);
+    ctx.textAlign = 'left';
+  }
+  ctx.restore();
+
+  // selo de desconto
+  if (it.discount != null) {
+    const g = ctx.createLinearGradient(0, 0, 260, 0);
+    g.addColorStop(0, a1); g.addColorStop(1, a2);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.roundRect(imgBox.x + 24, imgBox.y + 24, 230, 96, 48);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 56px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`-${it.discount}%`, imgBox.x + 24 + 115, imgBox.y + 24 + 68);
+    ctx.textAlign = 'left';
+  }
+
+  // textos
+  let ty = imgBox.y + imgBox.h + 80;
+  const tx = x + 50, tw = w - 100;
+  if (it.brand) {
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.font = '600 34px -apple-system, system-ui, sans-serif';
+    ctx.fillText(it.brand.toUpperCase(), tx, ty);
+    ty += 60;
+  }
+  ctx.fillStyle = '#fff';
+  ctx.font = '700 50px -apple-system, system-ui, sans-serif';
+  for (const line of wrapText(ctx, it.name || 'Sem nome', tw, 3)) {
+    ctx.fillText(line, tx, ty);
+    ty += 64;
+  }
+  ty += 40;
+  ctx.font = '800 96px -apple-system, system-ui, sans-serif';
+  const priceTxt = fmtPrice(it.price, it.currency) || '—';
+  ctx.fillText(priceTxt, tx, ty);
+  if (it.oldPrice != null) {
+    const pw = ctx.measureText(priceTxt).width;
+    ctx.font = '500 48px -apple-system, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    const old = fmtPrice(it.oldPrice, it.currency);
+    const ox = tx + pw + 30;
+    ctx.fillText(old, ox, ty);
+    const ow = ctx.measureText(old).width;
+    ctx.fillRect(ox, ty - 16, ow, 4);
+  }
+
+  // rodapé
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '400 26px -apple-system, system-ui, sans-serif';
+  let host = '';
+  try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
+  ctx.fillText(`${host} · ${new Date(it.foundAt || Date.now()).toLocaleString('pt-PT')}`, tx, y + h - 50);
+
+  const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+  if (!blob) return toast('Não foi possível gerar a imagem');
+  const name = `produto-${(it.name || 'item').toLowerCase().replace(/[^a-z0-9]+/gi, '-').slice(0, 50)}.png`;
+  const file = new File([blob], name, { type: 'image/png' });
+  // no iPhone, a folha de partilha permite "Guardar imagem" nas Fotografias
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: it.name }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  download(name, blob);
+}
+
+/* =========================================================
+   Notificações, som e badge
+   ========================================================= */
+let audioCtx = null;
+function unlockAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch {}
+}
+
+function chime() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  [660, 880, 1320].forEach((f, i) => {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0, t + i * 0.12);
+    g.gain.linearRampToValueAtTime(0.15, t + i * 0.12 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.6);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t + i * 0.12);
+    o.stop(t + i * 0.12 + 0.65);
+  });
+}
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW:', e));
+}
+
+async function askNotifyPermission() {
+  if (!$('notify').checked || !('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch {}
+  }
+}
+
+async function notifyDone(title, body) {
+  chime();
+  navigator.vibrate?.([120, 60, 120]);
+  toast(`${title} — ${body}`, 7000);
+  try { navigator.setAppBadge?.(items.length || undefined); } catch {}
+  if (!$('notify').checked || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const opts = { body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'crawl-done', renotify: true };
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg) return await reg.showNotification(title, opts);
+  } catch {}
+  try { new Notification(title, opts); } catch {}
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) try { navigator.clearAppBadge?.(); } catch {}
+});
+
+/* =========================================================
+   Iniciar / parar
+   ========================================================= */
 function setRunning(on) {
   $('startBtn').disabled = on;
   $('stopBtn').disabled = !on;
   $('exportJson').disabled = on || !results.length;
   $('exportCsv').disabled = on || !results.length;
+  $('exportItems').disabled = on || !items.length;
   document.querySelectorAll('#config input, #config select, #config textarea').forEach((el) => (el.disabled = on));
 }
 
-/* ---------- iniciar / parar ---------- */
 $('config').addEventListener('submit', async (e) => {
   e.preventDefault();
+  unlockAudio();              // o iOS só deixa tocar som depois de um toque
+  const permission = askNotifyPermission(); // tem de ser pedido logo no toque
   saveSettings();
 
-  const proxy = $('proxy').value === 'custom' ? $('customProxy').value.trim() : $('proxy').value;
-  if (proxy !== '{url}' && !proxy.includes('{url}')) {
-    alert('O proxy tem de conter o marcador {url}.');
-    return;
+  const proxies = buildProxyList();
+  if (!proxies.length) return alert('Escreve o endereço do teu proxy ou escolhe outro modo.');
+  if (proxies.some((p) => p.tpl !== '{url}' && !p.tpl.includes('{url}') && !p.tpl.includes('{rawurl}'))) {
+    return alert('O proxy tem de conter o marcador {url}.');
   }
 
   results = [];
+  items = [];
   kwFilter = null;
   $('results').innerHTML = '';
+  $('items').innerHTML = '';
+  $('itemsPanel').classList.add('hidden');
   $('log').textContent = '';
+  try { navigator.clearAppBadge?.(); } catch {}
 
   crawler = new Crawler({
     startUrls: splitList($('sites').value, /[\n\s,]+/),
     keywords: splitList($('keywords').value, /[\n,;]+/),
     wholeWord: $('wholeWord').checked,
     caseSensitive: $('caseSensitive').checked,
+    minPrice: numOrNull($('minPrice').value),
+    maxPrice: numOrNull($('maxPrice').value),
+    minDiscount: numOrNull($('minDiscount').value),
     maxPages: +$('maxPages').value,
     maxDepth: +$('maxDepth').value,
     concurrency: +$('concurrency').value,
     delay: +$('delay').value,
-    proxy,
+    proxies,
     sameDomain: $('sameDomain').checked,
     respectRobots: $('respectRobots').checked,
     stripQuery: $('stripQuery').checked,
   });
 
   crawler.onResult = (r, i) => { results.push(r); addRow(r, i); };
+  crawler.onItem = (it, n) => { items.push(it); appendItem(it, n); };
   crawler.onLog = log;
   crawler.onProgress = (s) => updateStats(s, 'a correr');
 
   setRunning(true);
   updateStats(crawler.stats(), 'a correr');
+  await permission;
+  let state = 'concluído';
   try {
-    await crawler.start();
-    updateStats(crawler.stats(), 'concluído');
+    const { stopped } = await crawler.start();
+    if (stopped) state = 'parado';
   } catch (err) {
     log('Erro: ' + err.message);
-    updateStats(crawler.stats(), 'erro');
+    state = 'erro';
   }
+  const s = crawler.stats();
+  updateStats(s, state);
   setRunning(false);
+
+  if (state !== 'parado') {
+    const body = items.length
+      ? `${items.length} produto(s) encontrado(s) em ${s.crawled} página(s)`
+      : s.errors && s.errors === s.crawled
+        ? `Falhou: ${s.errors} erro(s) — vê o log`
+        : `${s.crawled} página(s) analisada(s), ${s.matches} com palavras-chave`;
+    notifyDone(state === 'erro' ? 'Crawling com erro' : 'Crawling terminado', body);
+  }
 });
 
 $('stopBtn').addEventListener('click', () => {
@@ -190,35 +578,41 @@ $('stopBtn').addEventListener('click', () => {
   updateStats(crawler.stats(), 'parado');
 });
 
-/* ---------- exportar ---------- */
+/* =========================================================
+   Exportar
+   ========================================================= */
 function download(name, content, type) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.href = URL.createObjectURL(blob);
   a.download = name;
   a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
 }
 
 function stamp() {
   return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
 }
 
+const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
 $('exportJson').addEventListener('click', () => {
-  download(`crawl-${stamp()}.json`, JSON.stringify(results, null, 2), 'application/json');
+  download(`crawl-${stamp()}.json`, JSON.stringify({ pages: results, products: items }, null, 2), 'application/json');
 });
 
 $('exportCsv').addEventListener('click', () => {
   const kws = Object.keys(crawler?.keywordTotals || {});
   const cols = ['url', 'status', 'title', 'description', 'depth', 'from', 'ms', 'wordCount', 'images', 'canonical', 'error'];
-  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const header = [...cols, 'links', 'keywordTotal', ...kws.map((k) => `kw:${k}`)];
+  const header = [...cols, 'links', 'products', 'keywordTotal', ...kws.map((k) => `kw:${k}`)];
   const rows = results.map((r) =>
-    [
-      ...cols.map((c) => r[c]),
-      r.links?.length ?? 0,
-      r.keywordTotal ?? 0,
-      ...kws.map((k) => r.keywordHits?.[k] ?? 0),
-    ].map(cell).join(',')
+    [...cols.map((c) => r[c]), r.links?.length ?? 0, r.items?.length ?? 0, r.keywordTotal ?? 0, ...kws.map((k) => r.keywordHits?.[k] ?? 0)]
+      .map(cell).join(',')
   );
-  download(`crawl-${stamp()}.csv`, '﻿' + [header.map(cell).join(','), ...rows].join('\n'), 'text/csv');
+  download(`paginas-${stamp()}.csv`, '﻿' + [header.map(cell).join(','), ...rows].join('\n'), 'text/csv');
+});
+
+$('exportItems').addEventListener('click', () => {
+  const cols = ['name', 'brand', 'price', 'oldPrice', 'discount', 'currency', 'url', 'image', 'page', 'source', 'foundAt'];
+  const rows = items.map((it) => [...cols.map((c) => it[c]), Object.keys(it.keywordHits || {}).join(' | '), screenshotUrl(it.url)].map(cell).join(','));
+  download(`produtos-${stamp()}.csv`, '﻿' + [[...cols, 'keywords', 'screenshot'].map(cell).join(','), ...rows].join('\n'), 'text/csv');
 });
