@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Web Crawler</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
+  <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Crawler">
+</head>
+<body>
+  <header>
+    <h1><img src="icons/logo.svg" alt="" class="logo"> Web Crawler</h1>
+    <p class="sub">Crawler 100% no browser — corre em GitHub Pages.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <form id="config">
+        <label class="half">
+          Sites a analisar <small>(um por linha)</small>
+          <textarea id="sites" rows="4" placeholder="https://example.com&#10;outrosite.pt" required></textarea>
+        </label>
+        <label class="half">
+          Palavras-chave <small>(uma por linha ou separadas por vírgula)</small>
+          <textarea id="keywords" rows="4" placeholder="preço&#10;entrega grátis&#10;promoção"></textarea>
+        </label>
+
+        <div class="checks full">
+          <label><input type="checkbox" id="wholeWord" checked> Palavra inteira</label>
+          <label><input type="checkbox" id="caseSensitive"> Distinguir maiúsculas/minúsculas</label>
+        </div>
+
+        <label>
+          Máx. páginas
+          <input type="number" id="maxPages" value="50" min="1" max="5000">
+        </label>
+        <label>
+          Profundidade máx.
+          <input type="number" id="maxDepth" value="2" min="0" max="20">
+        </label>
+        <label>
+          Pedidos em paralelo
+          <input type="number" id="concurrency" value="3" min="1" max="10">
+        </label>
+        <label>
+          Pausa entre pedidos (ms)
+          <input type="number" id="delay" value="300" min="0" step="50">
+        </label>
+
+        <label class="full">
+          Proxy CORS
+          <select id="proxy">
+            <option value="https://api.allorigins.win/raw?url={url}">allorigins.win</option>
+            <option value="https://corsproxy.io/?url={url}">corsproxy.io</option>
+            <option value="https://api.codetabs.com/v1/proxy?quest={url}">codetabs.com</option>
+            <option value="{url}">Nenhum (só sites com CORS aberto)</option>
+            <option value="custom">Personalizado…</option>
+          </select>
+        </label>
+        <label class="full hidden" id="customProxyWrap">
+          Proxy personalizado (use <code>{url}</code> como marcador)
+          <input type="text" id="customProxy" placeholder="https://meu-proxy.workers.dev/?url={url}">
+        </label>
+
+        <div class="checks full">
+          <label><input type="checkbox" id="sameDomain" checked> Ficar dentro dos sites indicados</label>
+          <label><input type="checkbox" id="respectRobots" checked> Respeitar robots.txt</label>
+          <label><input type="checkbox" id="stripQuery"> Ignorar query strings (?a=b)</label>
+        </div>
+
+        <div class="buttons full">
+          <button type="submit" id="startBtn">▶ Iniciar</button>
+          <button type="button" id="stopBtn" disabled>■ Parar</button>
+          <button type="button" id="exportJson" disabled>⬇ JSON</button>
+          <button type="button" id="exportCsv" disabled>⬇ CSV</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="stats">
+      <div><span id="statCrawled">0</span><small>visitadas</small></div>
+      <div><span id="statQueued">0</span><small>em fila</small></div>
+      <div><span id="statMatches">0</span><small>com palavras-chave</small></div>
+      <div><span id="statErrors">0</span><small>erros</small></div>
+      <div><span id="statLinks">0</span><small>links únicos</small></div>
+      <div><span id="statStatus">parado</span><small>estado</small></div>
+    </section>
+
+    <section class="panel hidden" id="kwPanel">
+      <h2>Palavras-chave</h2>
+      <div id="kwSummary" class="kw-summary"></div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input type="search" id="filter" placeholder="Filtrar resultados…">
+        <label class="inline"><input type="checkbox" id="onlyMatches"> Só páginas com palavras-chave</label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>URL</th><th>Estado</th><th>Título</th><th>Palavras-chave</th>
+              <th>Prof.</th><th>Links</th><th>ms</th>
+            </tr>
+          </thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Log</h2>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <script src="crawler.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
