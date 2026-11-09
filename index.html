@@ -212,6 +212,21 @@
       <div id="compareList" class="cmp-list"></div>
     </section>
 
+    <details class="panel hidden" id="resalePanel">
+      <summary><h2>📈 Simulador de revenda <small class="h-sub">comprar barato aqui e revender: dá lucro?</small></h2></summary>
+      <p class="mon-desc">Para cada produto encontrado: preço de revenda (o teu valor, a avaliação 💡 da IA, outra loja ou o preço antigo),
+        menos comissões, portes, embalagem, IVA e devoluções. Depois simula vários meses de compras e vendas, com o dinheiro reinvestido.
+        Os valores de partida são suposições: ajusta-os à plataforma onde venderias.</p>
+      <div id="rsParams" class="rs-params"></div>
+      <div class="buttons">
+        <button type="button" id="rsRun" class="primary">▶ Simular</button>
+        <button type="button" id="rsReset">Repor valores de partida</button>
+        <span id="rsSummary" class="rs-sum"></span>
+      </div>
+      <div id="rsResult"></div>
+      <div id="rsTable"></div>
+    </details>
+
     <details class="panel" id="monitorPanel">
       <summary><h2>🔔 Alertas automáticos <small class="h-sub">o teu Worker verifica sozinho e avisa-te no iPhone</small></h2></summary>
       <p class="mon-desc">O Worker verifica de hora a hora os produtos que segues (☆ Seguir) e as pesquisas guardadas com 🔔,
@@ -275,6 +290,7 @@
   <script src="js/extract-lite.js"></script>
   <script src="js/crawler.js"></script>
   <script src="js/deals.js"></script>
+  <script src="js/resale.js"></script>
   <script src="js/items.js"></script>
   <script src="js/watch.js"></script>
   <script src="js/monitor.js"></script>

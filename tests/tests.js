@@ -103,6 +103,32 @@
   const shop = SiteCheck.classify(R(GLOBALDATA.replace('</head>', '<script src="https://cdn.shopify.com/s/x.js"></script></head>')), u);
   ok(shop.platform === 'Shopify' && /Shopify/.test(shop.notes.join(' ')), 'plataforma Shopify identificada');
 
+  group('Simulador de revenda');
+  {
+    const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };
+    const a = Resale.profit(50, 100, P);
+    // 100 - (10 + 0,5) - 5 - 1 - 50 = 33,5
+    ok(a.net === 33.5 && a.roi === 67, 'lucro: 100 € de venda, 50 € de compra → 33,50 € (67%)', [a.net, a.roi]);
+    const m = Resale.profit(50, 100, { ...P, vat: 'margin' });
+    ok(Math.abs(m.vat - 50 * 0.23 / 1.23) < 0.01, 'regime da margem: IVA só sobre os 50 € de margem', m.vat);
+    const n = Resale.profit(50, 100, { ...P, vat: 'normal' });
+    ok(Math.abs(n.vat - (100 - 100 / 1.23 - (50 - 50 / 1.23))) < 0.01, 'IVA normal: liquidado − dedutível', n.vat);
+    const q = Resale.profit(50, 100, { ...P, quickSalePct: 10, returnPct: 10 });
+    ok(q.sale === 90 && q.returns === 1.1, 'venda 10% abaixo do mercado e custo esperado das devoluções', [q.sale, q.returns]);
+    ok(Resale.profit(0, 100, P) === null && Resale.profit(10, null, P) === null, 'sem preço de compra ou de revenda → sem cálculo');
+    const it = { name: 'X', url: 'https://loja.pt/p/x', price: 40, oldPrice: 60 };
+    ok(Resale.marketPrice(it, { manual: {}, deal: { lowestPrice: 55, typicalPrice: 65 }, others: [], history: null }).value === 55, 'revenda: usa o mais baixo da concorrência (IA)');
+    ok(Resale.marketPrice(it, { manual: {}, deal: null, others: [], history: null }).source === 'antigo', 'sem IA: usa o preço antigo');
+    const SP = { ...P, budget: 300, months: 6, sellProb: 70, priceVol: 10, dealsAgain: 50, minRoi: 10 };
+    const good = Resale.simulate([{ buy: 50, market: 100 }, { buy: 30, market: 55 }], SP, { runs: 500, seed: 7 });
+    const good2 = Resale.simulate([{ buy: 50, market: 100 }, { buy: 30, market: 55 }], SP, { runs: 500, seed: 7 });
+    ok(good.profit.p50 > 0 && good.probLoss < 10 && good.bands.length === 7, 'simulação rentável dá lucro provável positivo', good.profit);
+    ok(JSON.stringify(good) === JSON.stringify(good2), 'mesma semente → mesmo resultado (repetível)');
+    const bad = Resale.simulate([{ buy: 50, market: 58 }], { ...SP, minRoi: -100 }, { runs: 300, seed: 3 });
+    ok(bad.profit.p50 < 0 && bad.probLoss > 50, 'margem pequena + custos → prejuízo provável', bad.profit);
+    ok(Resale.simulate([{ buy: 50, market: 58 }], SP, { runs: 50 }).pool === 0, 'retorno abaixo do mínimo → não compra');
+  }
+
   group('Rádio Popular (microdata) e sitemap');
   {
     const tile = (name, price, old, slug, img) => `<article class="product-grid-module module product link ECI " itemprop="itemListElement" itemscope itemtype="http://schema.org/Product"> <div class="mobile"> <meta itemprop="name" content="${name}" /> <meta itemprop="sku" content="1351121" /> <meta itemprop="gtin13" content="8806096833339" /> <div itemprop="brand" itemscope itemtype="http://schema.org/Brand"> <meta itemprop="name" content="LG"> </div> <div class="flags"><div class="flags-item standard">Até 10x Sem Juros</div></div> <div class="designation px-2" itemprop="name" content="${name}"> <a href="https://www.radiopopular.pt/produto/${slug}" target="_top"> ${name} </a> </div> <div class="image wrapper"> <a href="https://www.radiopopular.pt/produto/${slug}" itemprop="url"> <img src="https://www.radiopopular.pt/includes/imgs/1x1.png" loading="lazy" style="background-image:url('https://x.pt/${img}.jpg');" alt="${name}" itemprop="image" content="https://x.pt/${img}.jpg"> </a> </div> <div class="data cb" itemprop="offers" itemscope="" itemtype="http://schema.org/Offer"> <a href="/entrega" class="message-stock">Entrega em 1 a 2 dias úteis </a> <meta itemprop="priceCurrency" content="EUR"> <div class="promotion promotion-pvpr"><p class="promotion-number">-27%</p><p class="promotion-text">sobre PVPR</p></div> <div class="data-bottom">${old ? `<div class="old-price notranslate fl"><p class="rp-body-3 old-price__pvpr">PVPR*</p><span class="no-strike rp-body-3">€${old}</span><sup class="no-strike rp-sup">,99</sup></div>` : ''} <div class="product-footer"> <div class="price notranslate fl" itemprop="price" content="${price}">${Math.floor(price)}<sup>,99</sup></div> </div> <meta itemprop="availability" content="http://schema.org/InStock" /> </div> </div> </div> </article>`;

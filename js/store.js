@@ -208,7 +208,7 @@ const Store = (() => {
     const d = read(dealKey(it), null);
     return d && Date.now() - Date.parse(d.checkedAt) < maxAgeMs ? d : null;
   }
-  const setDeal = (it, d) => write(dealKey(it), d);
+  const setDeal = (it, d) => { write(dealKey(it), d); emit('deal'); };
 
   /** só para testes: esquece a cache em memória */
   function _reset() { historyCache = null; }
