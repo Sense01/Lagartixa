@@ -265,7 +265,7 @@ class Crawler {
     if (!isFinite(discount)) discount = null;
     const url = raw.url ? this.normalize(raw.url, pageUrl) || pageUrl : pageUrl;
     return {
-      name: (raw.name || '').replace(/\s+/g, ' ').trim(),
+      name: (raw.name || '').replace(/\s+/g, ' ').trim().replace(/^\d{5,}\s*[-\u2013|]\s*/, ''),   // "1352201 - MONITOR…" -> "MONITOR…"
       brand: String(raw.brand || '').trim(),
       ean: String(raw.ean || '').replace(/\D/g, '') || '',
       mpn: String(raw.mpn || '').trim(),
