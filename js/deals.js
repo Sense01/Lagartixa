@@ -56,7 +56,7 @@ async function evaluateDeal(it, { force = false } = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name, price: it.price, oldPrice: it.oldPrice, currency: 'EUR',
-        store: hostOf(it.url), country: countryOf(it.url),
+        store: hostOf(it.url), country: SiteDir.countryFor(it.url) || countryOf(it.url),
         ean: it.ean || undefined,
         history: Store.historyStats(it) || undefined,   // o teu próprio histórico de preços
         otherStores: Store.otherStores(it).slice(0, 3).map((o) => ({ store: o.store, price: o.price, date: o.date })),

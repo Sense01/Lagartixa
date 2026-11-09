@@ -6,7 +6,7 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
 ## Funcionalidades
 
 **Lojas (📚)**
-- **Diretório de lojas testadas** (`data/sites.json`): 68 lojas PT/FR com estado verificado (✅ funciona / ⚠️ parcial / ⛔ bloqueia),
+- **Diretório de lojas testadas** (`data/sites.json`): 98 lojas de Portugal, Espanha, França e Alemanha com estado verificado (as que bloqueiam ficam escondidas) (✅ funciona / ⚠️ parcial / ⛔ bloqueia),
   categoria, método de leitura, notas sobre o `robots.txt` e endereços de partida prontos — carrega em **Usar** (ou **＋** para juntar várias lojas).
 - **Verificador de compatibilidade**: cola o endereço de qualquer loja e a app testa, através do teu Worker, o `robots.txt`,
   bloqueios/captchas, páginas só com JavaScript, o método de leitura e quantos produtos com preço encontra. As lojas testadas ficam

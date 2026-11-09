@@ -100,7 +100,7 @@ const SiteCheck = (() => {
 })();
 
 const SiteDir = (() => {
-  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], showResale() {}, collectionStarts: () => [], collections: () => [] };   // página de testes
+  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], showResale() {}, collectionStarts: () => [], countryFor: () => null, collections: () => [] };   // página de testes
   const K_MINE = (window.STORE_PREFIX || '') + 'crawler-mysites';
   const K_CHECKS = (window.STORE_PREFIX || '') + 'crawler-sitechecks';
   const STATUS = {
@@ -135,7 +135,7 @@ const SiteDir = (() => {
     const out = [];
     for (const [id, labels] of Object.entries(col.stores || {})) {
       const s = byId.get(id);
-      if (!s || (country && s.country !== country)) continue;
+      if (!s || (country && !country.split(',').includes(s.country))) continue;
       const st = effectiveStatus(s);
       if (!['ok', 'partial'].includes(st)) continue;
       for (const l of labels) { const x = (s.starts || []).find((y) => y.label === l); if (x) out.push({ site: s, url: x.url, label: l }); }
@@ -327,5 +327,12 @@ const SiteDir = (() => {
     $('sitesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  return { load, render, allSites, showResale, collectionStarts, collections: () => data.collections || [] };
+  /** pais de uma loja conhecida (para a IA comparar no mercado certo: coolmod.com -> ES) */
+  function countryFor(url) {
+    const h = hostOf(url);
+    const s = allSites().find((x) => h === x.domain || h.endsWith('.' + x.domain));
+    return s?.country || null;
+  }
+
+  return { load, render, allSites, showResale, collectionStarts, countryFor, collections: () => data.collections || [] };
 })();

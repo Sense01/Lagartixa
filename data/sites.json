@@ -1304,6 +1304,630 @@
       ],
       "status": "blocked",
       "notes": "⚠️ O domínio já não pertence à loja: mostra uma página de apostas/spam. Não usar."
+    },
+    {
+      "id": "aussar",
+      "name": "Aussar",
+      "domain": "aussar.es",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (automático)",
+      "starts": [
+        {
+          "label": "Tarjetas gráficas",
+          "url": "https://www.aussar.es/tarjetas-graficas/"
+        },
+        {
+          "label": "Procesadores",
+          "url": "https://www.aussar.es/procesadores/"
+        },
+        {
+          "label": "Placas base",
+          "url": "https://www.aussar.es/placas-base/"
+        },
+        {
+          "label": "Portátiles",
+          "url": "https://www.aussar.es/equipos/ordenadores-portatiles/"
+        }
+      ],
+      "notes": "Loja de informática muito bem avaliada em Espanha. 20 produtos por página (?page=N permitido); ordenação, ?n= e pesquisa proibidos."
+    },
+    {
+      "id": "pcbox",
+      "name": "PCBOX",
+      "domain": "pcbox.com",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Componentes",
+          "url": "https://www.pcbox.com/componentes-de-ordenador"
+        },
+        {
+          "label": "Procesadores",
+          "url": "https://www.pcbox.com/componentes-de-ordenador/procesadores"
+        },
+        {
+          "label": "Placas base",
+          "url": "https://www.pcbox.com/componentes-de-ordenador/placas-base"
+        },
+        {
+          "label": "Ordenadores",
+          "url": "https://www.pcbox.com/ordenadores"
+        }
+      ],
+      "notes": "Rede de lojas de informática espanhola. 30 produtos por página (?page=N permitido); só a pesquisa é proibida."
+    },
+    {
+      "id": "beep",
+      "name": "Beep",
+      "domain": "beep.es",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Componentes",
+          "url": "https://www.beep.es/componentes-de-ordenador"
+        },
+        {
+          "label": "Ordenadores",
+          "url": "https://www.beep.es/ordenadores"
+        },
+        {
+          "label": "Gaming",
+          "url": "https://www.beep.es/gaming"
+        }
+      ],
+      "notes": "Rede espanhola de lojas de informática (mesma plataforma da PCBOX). 30 produtos por página."
+    },
+    {
+      "id": "appinformatica",
+      "name": "APP Informática",
+      "domain": "appinformatica.com",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Componentes",
+          "url": "https://www.appinformatica.com/componentes-de-ordenador"
+        },
+        {
+          "label": "Ordenadores",
+          "url": "https://www.appinformatica.com/ordenadores"
+        },
+        {
+          "label": "Gaming",
+          "url": "https://www.appinformatica.com/gaming"
+        }
+      ],
+      "notes": "Rede espanhola com lojas físicas (mesma plataforma da PCBOX). 30 produtos por página, muitos com PVPR."
+    },
+    {
+      "id": "alternate-es",
+      "name": "Alternate España",
+      "domain": "alternate.es",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (destaques)",
+          "url": "https://www.alternate.es/"
+        }
+      ],
+      "notes": "A página inicial mostra os destaques com preço; as categorias não foram verificadas. A versão alemã (alternate.de) funciona por completo."
+    },
+    {
+      "id": "zacatrus",
+      "name": "Zacatrus",
+      "domain": "zacatrus.es",
+      "country": "ES",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Juegos de mesa",
+          "url": "https://zacatrus.es/juegos-de-mesa.html"
+        },
+        {
+          "label": "Juegos Zacatrus",
+          "url": "https://zacatrus.es/juegos-de-mesa/zacatrus.html"
+        },
+        {
+          "label": "Accesorios",
+          "url": "https://zacatrus.es/accesorios-juegos.html"
+        }
+      ],
+      "notes": "A maior loja de jogos de tabuleiro de Espanha, com muitos 'Antes … / Precio especial'. 24 por página (?p=N permitido). O robots.txt pede 3 segundos entre pedidos: usa uma pausa ≥ 3000 ms."
+    },
+    {
+      "id": "dracotienda",
+      "name": "Dracotienda",
+      "domain": "dracotienda.com",
+      "country": "ES",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (automático)",
+      "starts": [
+        {
+          "label": "Juegos de tablero",
+          "url": "https://dracotienda.com/1715-juegos-de-tablero"
+        },
+        {
+          "label": "Juegos de cartas",
+          "url": "https://dracotienda.com/1729-juegos-de-cartas"
+        },
+        {
+          "label": "Miniaturas",
+          "url": "https://dracotienda.com/1710-miniaturas"
+        }
+      ],
+      "notes": "Jogos de tabuleiro, rol e miniaturas, com descontos frequentes. 30 por página (?page=N permitido)."
+    },
+    {
+      "id": "toyplanet",
+      "name": "Toy Planet",
+      "domain": "toyplanet.com",
+      "country": "ES",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "Shopify (HTML)",
+      "starts": [
+        {
+          "label": "LEGO",
+          "url": "https://www.toyplanet.com/collections/lego"
+        },
+        {
+          "label": "Todos los juguetes",
+          "url": "https://www.toyplanet.com/collections/todos-los-juguetes"
+        }
+      ],
+      "notes": "Rede espanhola de lojas de brinquedos (Shopify). Os nomes trazem o número do set LEGO, por isso compara com outras lojas. 20 por página (?page=N)."
+    },
+    {
+      "id": "juguetilandia",
+      "name": "Juguetilandia",
+      "domain": "juguetilandia.com",
+      "country": "ES",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (novidades e ofertas)",
+          "url": "https://www.juguetilandia.com/"
+        }
+      ],
+      "notes": "A página inicial traz cerca de 16 produtos com preço antigo; a página LEGO é só uma lista de temas (os produtos estão nas subpáginas)."
+    },
+    {
+      "id": "tien21",
+      "name": "Tien21",
+      "domain": "tien21.es",
+      "country": "ES",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Grandes electrodomésticos",
+          "url": "https://www.tien21.es/grandes-electrodomesticos.html"
+        },
+        {
+          "label": "Lavadoras carga frontal",
+          "url": "https://www.tien21.es/grandes-electrodomesticos/lavadoras/lavadoras-carga-frontal.html"
+        },
+        {
+          "label": "Frigoríficos combi",
+          "url": "https://www.tien21.es/grandes-electrodomesticos/frigorificos/frigorificos-combi.html"
+        }
+      ],
+      "notes": "Eletrodomésticos. As categorias principais mostram os 10 mais comprados; as subcategorias podem ter mais. Filtros (con-…, de-…) proibidos no robots.txt."
+    },
+    {
+      "id": "electrocosto",
+      "name": "Electrocosto",
+      "domain": "electrocosto.com",
+      "country": "ES",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Electrodomésticos",
+          "url": "https://www.electrocosto.com/electrodomesticos/"
+        },
+        {
+          "label": "Pequeños electrodomésticos",
+          "url": "https://www.electrocosto.com/pequenos-electrodomesticos/"
+        },
+        {
+          "label": "Televisión",
+          "url": "https://www.electrocosto.com/television/"
+        }
+      ],
+      "notes": "Eletrodomésticos a preço baixo; cerca de 16 produtos por categoria. Não consegui ler o robots.txt através do Worker — a app volta a verificá-lo em cada pesquisa."
+    },
+    {
+      "id": "neobyte",
+      "name": "Neobyte",
+      "domain": "neobyte.es",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "coolmod",
+      "name": "Coolmod",
+      "domain": "coolmod.com",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Deu erro do servidor nas duas tentativas de 09/11/2026 (pode estar a bloquear servidores)."
+    },
+    {
+      "id": "wipoid",
+      "name": "Wipoid",
+      "domain": "wipoid.com",
+      "country": "ES",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "O domínio mostra uma página genérica do servidor (Plesk): a loja não está neste endereço."
+    },
+    {
+      "id": "caseking",
+      "name": "Caseking",
+      "domain": "caseking.de",
+      "country": "DE",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (Salesforce, deteção automática)",
+      "starts": [
+        {
+          "label": "Grafikkarten",
+          "url": "https://www.caseking.de/pc-komponenten/grafikkarten"
+        },
+        {
+          "label": "PC-Komponenten",
+          "url": "https://www.caseking.de/pc-komponenten"
+        },
+        {
+          "label": "Gaming",
+          "url": "https://www.caseking.de/gaming"
+        }
+      ],
+      "notes": "Grande loja alemã de hardware, muitos preços riscados. Filtros e ordenação (prefn, srule, pmin, pmax) proibidos no robots.txt."
+    },
+    {
+      "id": "alternate-de",
+      "name": "Alternate",
+      "domain": "alternate.de",
+      "country": "DE",
+      "categories": [
+        "informatica",
+        "eletronica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Grafikkarten",
+          "url": "https://www.alternate.de/Grafikkarten"
+        },
+        {
+          "label": "Hardware",
+          "url": "https://www.alternate.de/Hardware"
+        },
+        {
+          "label": "Notebooks",
+          "url": "https://www.alternate.de/Notebook"
+        }
+      ],
+      "notes": "Uma das maiores lojas de informática da Alemanha. 24 por página (?page=N)."
+    },
+    {
+      "id": "playox",
+      "name": "Playox",
+      "domain": "playox.de",
+      "country": "DE",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Laptops",
+          "url": "https://www.playox.de/laptops/"
+        },
+        {
+          "label": "Gaming-Monitore",
+          "url": "https://www.playox.de/monitore/gaming-monitore/"
+        },
+        {
+          "label": "PC-Zubehör",
+          "url": "https://www.playox.de/pc-zubehoer/"
+        }
+      ],
+      "notes": "Loja de informática e gaming (OFFICE Partner). 9 produtos por página com 'Weitere Produkte anzeigen'; muitos com UVP riscado."
+    },
+    {
+      "id": "spiele-offensive",
+      "name": "Spiele-Offensive",
+      "domain": "spiele-offensive.de",
+      "country": "DE",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Brettspiele",
+          "url": "https://www.spiele-offensive.de/Kategorie/Brettspiel-118-0.html"
+        },
+        {
+          "label": "Kartenspiele",
+          "url": "https://www.spiele-offensive.de/Kategorie/Kartenspiel-117-0.html"
+        }
+      ],
+      "notes": "Das maiores lojas de jogos de tabuleiro da Alemanha, com descontos até -80%. 50 por página."
+    },
+    {
+      "id": "jb-spielwaren",
+      "name": "JB Spielwaren",
+      "domain": "jb-spielwaren.de",
+      "country": "DE",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Alle LEGO Sets",
+          "url": "https://www.jb-spielwaren.de/alle-lego-sets/"
+        },
+        {
+          "label": "LEGO Star Wars",
+          "url": "https://www.jb-spielwaren.de/lego-star-wars/"
+        },
+        {
+          "label": "LEGO Technic",
+          "url": "https://www.jb-spielwaren.de/lego-technic/"
+        }
+      ],
+      "notes": "Especialista LEGO com preços abaixo do PVP (UVP riscado) e número do set no nome. As páginas são pesadas (cerca de 1,5 MB)."
+    },
+    {
+      "id": "hugendubel",
+      "name": "Hugendubel",
+      "domain": "hugendubel.de",
+      "country": "DE",
+      "categories": [
+        "livros",
+        "brinquedos"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (destaques)",
+          "url": "https://www.hugendubel.de/de/"
+        }
+      ],
+      "notes": "Livraria alemã. Só os blocos em destaque trazem preço; as grelhas das categorias são carregadas por JavaScript."
+    },
+    {
+      "id": "mindfactory",
+      "name": "Mindfactory",
+      "domain": "mindfactory.de",
+      "country": "DE",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Mostra uma verificação 'I am human' (anti-robô)."
+    },
+    {
+      "id": "proshop-de",
+      "name": "Proshop",
+      "domain": "proshop.de",
+      "country": "DE",
+      "categories": [
+        "informatica",
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "cyberport",
+      "name": "Cyberport",
+      "domain": "cyberport.de",
+      "country": "DE",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "thalia",
+      "name": "Thalia",
+      "domain": "thalia.de",
+      "country": "DE",
+      "categories": [
+        "livros"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "smyths-de",
+      "name": "Smyths Toys",
+      "domain": "smythstoys.com",
+      "country": "DE",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "Deteta robôs e pede JavaScript e cookies."
+    },
+    {
+      "id": "tek4life",
+      "name": "Tek4life",
+      "domain": "tek4life.pt",
+      "country": "PT",
+      "categories": [
+        "informatica",
+        "eletronica"
+      ],
+      "status": "ok",
+      "method": "Shopify (HTML)",
+      "starts": [
+        {
+          "label": "Portáteis",
+          "url": "https://www.tek4life.pt/collections/portateis"
+        }
+      ],
+      "notes": "Loja de Braga (Shopify) com preço de saldo e preço normal. 24 por página com 'Carregar mais'; ordenação e filtros proibidos no robots.txt."
+    },
+    {
+      "id": "brickstore",
+      "name": "Brickstore",
+      "domain": "brickstore.pt",
+      "country": "PT",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "WooCommerce (HTML)",
+      "starts": [
+        {
+          "label": "Conjuntos LEGO",
+          "url": "https://brickstore.pt/categoria/conjuntos-lego/"
+        },
+        {
+          "label": "Minifiguras",
+          "url": "https://brickstore.pt/categoria/minifiguras/"
+        }
+      ],
+      "notes": "Loja LEGO de Braga (WooCommerce), com preço antigo e número do set no nome. Cerca de 477 sets."
+    },
+    {
+      "id": "gameplay",
+      "name": "Game Play",
+      "domain": "gameplay.pt",
+      "country": "PT",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (automático)",
+      "starts": [
+        {
+          "label": "Jogos de tabuleiro",
+          "url": "https://gameplay.pt/pt/3-jogos-de-tabuleiro"
+        },
+        {
+          "label": "Puzzles",
+          "url": "https://gameplay.pt/pt/181-puzzles"
+        },
+        {
+          "label": "Acessórios",
+          "url": "https://gameplay.pt/pt/12-acessorios"
+        }
+      ],
+      "notes": "Loja de jogos de tabuleiro de Lisboa (Benfica) com mais de 5000 jogos e descontos frequentes. ?page=N permitido."
+    },
+    {
+      "id": "cobra",
+      "name": "Cobra",
+      "domain": "cobra.fr",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "ok",
+      "method": "Shopify (HTML)",
+      "starts": [
+        {
+          "label": "Téléviseurs",
+          "url": "https://cobra.fr/collections/televiseurs"
+        },
+        {
+          "label": "Hi-Fi",
+          "url": "https://cobra.fr/collections/hifi"
+        },
+        {
+          "label": "Home cinéma",
+          "url": "https://cobra.fr/collections/home-cinema"
+        }
+      ],
+      "notes": "Loja parisiense de imagem e som (Shopify), com 'Prix normal' riscado. 30 por página (?page=N)."
+    },
+    {
+      "id": "leslibraires",
+      "name": "Les Libraires",
+      "domain": "leslibraires.fr",
+      "country": "FR",
+      "categories": [
+        "livros"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Página inicial (cerca de 55 livros)",
+          "url": "https://www.leslibraires.fr/"
+        }
+      ],
+      "notes": "Rede de livrarias independentes francesas. O robots.txt pede 5 segundos entre pedidos (usa pausa ≥ 5000 ms) e proíbe /products/, /shop/ e a pesquisa."
     }
   ],
   "collections": [
@@ -1324,6 +1948,15 @@
         ],
         "joueclub": [
           "Construction et maquettes (LEGO…)"
+        ],
+        "toyplanet": [
+          "LEGO"
+        ],
+        "jb-spielwaren": [
+          "Alle LEGO Sets"
+        ],
+        "brickstore": [
+          "Conjuntos LEGO"
         ]
       }
     },
@@ -1354,6 +1987,25 @@
         ],
         "rueducommerce": [
           "Composants"
+        ],
+        "aussar": [
+          "Tarjetas gráficas",
+          "Procesadores"
+        ],
+        "pcbox": [
+          "Componentes"
+        ],
+        "beep": [
+          "Componentes"
+        ],
+        "appinformatica": [
+          "Componentes"
+        ],
+        "caseking": [
+          "Grafikkarten"
+        ],
+        "alternate-de": [
+          "Grafikkarten"
         ]
       }
     },
@@ -1379,6 +2031,19 @@
         ],
         "electrodepot": [
           "PC portables"
+        ],
+        "tek4life": [
+          "Portáteis"
+        ],
+        "aussar": [
+          "Portátiles"
+        ],
+        "alternate-de": [
+          "Notebooks"
+        ],
+        "playox": [
+          "Laptops",
+          "Gaming-Monitore"
         ]
       }
     },
@@ -1405,6 +2070,17 @@
         ],
         "conforama-pt": [
           "Eletrodomésticos"
+        ],
+        "electrocosto": [
+          "Electrodomésticos",
+          "Televisión"
+        ],
+        "tien21": [
+          "Lavadoras carga frontal",
+          "Frigoríficos combi"
+        ],
+        "cobra": [
+          "Téléviseurs"
         ]
       }
     },
@@ -1430,6 +2106,18 @@
         ],
         "joueclub": [
           "Jeux de société"
+        ],
+        "zacatrus": [
+          "Juegos de mesa"
+        ],
+        "dracotienda": [
+          "Juegos de tablero"
+        ],
+        "spiele-offensive": [
+          "Brettspiele"
+        ],
+        "gameplay": [
+          "Jogos de tabuleiro"
         ]
       }
     },
@@ -1448,6 +2136,9 @@
         "leya": [
           "Promoções 1.º ciclo",
           "Apoio escolar"
+        ],
+        "leslibraires": [
+          "Página inicial (cerca de 55 livros)"
         ]
       }
     },

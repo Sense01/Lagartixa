@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -54,7 +54,7 @@
         <input type="search" id="sdSearch" placeholder="Procurar loja…">
         <select id="sdCat" aria-label="Categoria"></select>
         <select id="sdCountry" aria-label="País">
-          <option value="">Todos os países</option><option value="PT">🇵🇹 Portugal</option><option value="FR">🇫🇷 França</option>
+          <option value="">Todos os países</option><option value="PT">🇵🇹 Portugal</option><option value="ES">🇪🇸 Espanha</option><option value="FR">🇫🇷 França</option><option value="DE">🇩🇪 Alemanha</option>
         </select>
         <select id="sdStatus" aria-label="Estado">
           <option value="usable" selected>✅ Funcionam e parciais</option><option value="ok">✅ Só as que funcionam</option>
@@ -76,7 +76,8 @@
         <div class="collections full">
           <div class="col-head"><span class="sb-label">Pesquisar por categoria</span>
             <select id="colCountry" aria-label="País das lojas">
-              <option value="">🇵🇹 + 🇫🇷 Portugal e França</option><option value="PT">🇵🇹 Só Portugal</option><option value="FR">🇫🇷 Só França</option>
+              <option value="">🇵🇹 🇪🇸 🇫🇷 🇩🇪 Todos os países</option><option value="PT,ES">🇵🇹 🇪🇸 Portugal e Espanha</option>
+              <option value="PT">🇵🇹 Só Portugal</option><option value="ES">🇪🇸 Só Espanha</option><option value="FR">🇫🇷 Só França</option><option value="DE">🇩🇪 Só Alemanha</option>
             </select></div>
           <div id="colChips" class="col-chips"></div>
           <small id="colInfo" class="col-info"></small>
@@ -306,18 +307,18 @@
     </div>
   </div>
 
-  <script src="bg.js?v=19"></script>
-  <script src="js/util.js?v=19"></script>
-  <script src="js/store.js?v=19"></script>
-  <script src="js/extract-lite.js?v=19"></script>
-  <script src="js/crawler.js?v=19"></script>
-  <script src="js/value.js?v=19"></script>
-  <script src="js/deals.js?v=19"></script>
-  <script src="js/resale.js?v=19"></script>
-  <script src="js/items.js?v=19"></script>
-  <script src="js/watch.js?v=19"></script>
-  <script src="js/monitor.js?v=19"></script>
-  <script src="js/sites.js?v=19"></script>
-  <script src="js/app.js?v=19"></script>
+  <script src="bg.js?v=20"></script>
+  <script src="js/util.js?v=20"></script>
+  <script src="js/store.js?v=20"></script>
+  <script src="js/extract-lite.js?v=20"></script>
+  <script src="js/crawler.js?v=20"></script>
+  <script src="js/value.js?v=20"></script>
+  <script src="js/deals.js?v=20"></script>
+  <script src="js/resale.js?v=20"></script>
+  <script src="js/items.js?v=20"></script>
+  <script src="js/watch.js?v=20"></script>
+  <script src="js/monitor.js?v=20"></script>
+  <script src="js/sites.js?v=20"></script>
+  <script src="js/app.js?v=20"></script>
 </body>
 </html>
