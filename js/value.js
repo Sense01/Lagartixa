@@ -4,8 +4,8 @@
      1. o mesmo produto noutras lojas (encontrado agora ou no histórico)  -> média dessas lojas
      2. o preço típico encontrado pela IA (💡)
      3. o histórico de preços deste produto nesta loja                     -> média
-     4. produtos semelhantes desta pesquisa (mesmo tipo, ex. "monitor led") -> mediana
-     5. o preço antigo/PVPR anunciado pela loja                            -> o menos fiável
+     4. o preço antigo/PVPR anunciado pela própria loja
+     5. produtos semelhantes desta pesquisa (mesmo tipo, ex. "monitor led") -> mediana (o menos fiável)
    ========================================================= */
 
 const Value = (() => {
@@ -13,8 +13,8 @@ const Value = (() => {
     lojas: { w: 1, min: 8, label: (n) => `média de ${n} loja${n > 1 ? 's' : ''}` },
     ia: { w: 1, min: 8, label: () => 'preço típico (IA)' },
     historico: { w: 0.9, min: 8, label: (n) => `média do teu histórico (${n} registos)` },
-    semelhantes: { w: 0.7, min: 15, label: (n) => `mediana de ${n} produtos semelhantes` },
-    pvpr: { w: 0.5, min: 20, label: () => 'preço antigo anunciado' },
+    pvpr: { w: 0.6, min: 15, label: () => 'preço antigo anunciado pela loja' },
+    semelhantes: { w: 0.5, min: 25, label: (n) => `mediana de ${n} produtos semelhantes` },
   };
   const STOP = new Set(['de', 'da', 'do', 'para', 'com', 'e', 'the', 'pour', 'avec', 'et', 'en', 'a', 'o', 'le', 'la']);
 
@@ -76,16 +76,16 @@ const Value = (() => {
       const h = (hist(it) || []).filter((x) => x > 0);
       const past = h.length > 1 ? h.slice(0, -1) : [];
       if (past.length >= 2) cands.push({ basis: 'historico', ref: mean(past), n: past.length });
-      // 4. semelhantes (pelo menos 4 do mesmo tipo, sem contar este)
+      // 4. PVPR / preco antigo da propria loja
+      if (it.oldPrice > it.price) cands.push({ basis: 'pvpr', ref: it.oldPrice, n: 1 });
+
+      // 5. semelhantes (o mesmo tipo nao e o mesmo produto: referencia mais fraca) (pelo menos 4 do mesmo tipo, sem contar este)
       const k = typeKey(it.name);
       const peers = k ? (byType.get(k) || []) : [];
       if (peers.length >= 5) {
         const rest = [...peers]; rest.splice(rest.indexOf(it.price), 1);
         cands.push({ basis: 'semelhantes', ref: median(rest), n: rest.length });
       }
-      // 5. PVPR / preco antigo da propria loja
-      if (it.oldPrice > it.price) cands.push({ basis: 'pvpr', ref: it.oldPrice, n: 1 });
-
       const best = cands[0];   // ja estao por ordem de confianca
       if (!best || !(best.ref > 0)) { out.set(it, null); continue; }
       const pct = Math.round((best.ref - it.price) / best.ref * 100);
