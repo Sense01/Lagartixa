@@ -33,6 +33,8 @@ class Crawler {
       stripQuery: false,
       timeout: 20000,
       maxApiProducts: 1000,
+      useSitemap: false,     // procura produtos no sitemap da loja (para listas que só mostram 12 e carregam o resto por JavaScript)
+      maxSitemapFiles: 8,
       ...opts,
     };
     this.proxies = [...this.opts.proxies];
@@ -547,7 +549,10 @@ class Crawler {
     let rules = [];
     try {
       const r = await this.fetchText(origin + '/robots.txt', { timeout: 10000, maxTries: 1 });
-      if (r.ok && !/<html/i.test(r.text.slice(0, 500))) rules = this.parseRobots(r.text);
+      if (r.ok && !/<html/i.test(r.text.slice(0, 500))) {
+        rules = this.parseRobots(r.text);
+        rules.sitemaps = LiteX.robotsSitemaps(r.text);
+      }
       this.onLog(`robots.txt de ${origin}: ${rules.length} regras`);
     } catch {
       this.onLog(`robots.txt de ${origin} indisponível — a continuar sem regras`);
@@ -612,6 +617,14 @@ class Crawler {
     // produtos: JSON-LD primeiro; se não houver, heurística no HTML
     let products = this.extractJsonLd(doc, base);
     if (!products.length) products = this.extractHeuristic(doc, base);
+    // segunda opiniao: o extrator partilhado com o Worker (microdata, precos "79<sup>,99</sup>", imagens em background)
+    const priced = (list) => list.filter((p) => p.price != null).length;
+    if (priced(products) < 12) {
+      try {
+        const lite = LiteX.listingFromHtml(html, base).map((p) => this.makeItem(p, 'html', base));
+        if (priced(lite) > priced(products)) products = lite;
+      } catch {}
+    }
 
     doc.querySelectorAll('script, style, noscript, template, svg, iframe').forEach((n) => n.remove());
     const bodyText = (doc.body?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -635,14 +648,62 @@ class Crawler {
 
   /* ---------- ciclo principal ---------- */
 
-  enqueue(url, depth, from) {
-    if (this.seen.has(url)) return;
-    if (this.seen.size >= this.opts.maxPages) return;
-    if (depth > this.opts.maxDepth) return;
-    if (this.opts.sameDomain && !this.startHosts.has(this.hostKey(url))) return;
-    if (this.opts.sameSection && !this.inSection(url)) return;
+  enqueue(url, depth, from, extra) {
+    if (this.seen.has(url)) return false;
+    if (this.seen.size >= this.opts.maxPages) return false;
+    if (!extra?.product) {
+      if (depth > this.opts.maxDepth) return false;
+      if (this.opts.sameDomain && !this.startHosts.has(this.hostKey(url))) return false;
+      if (this.opts.sameSection && !this.inSection(url)) return false;
+    }
     this.seen.add(url);
-    this.queue.push({ url, depth, from });
+    this.queue.push({ url, depth, from, ...extra });
+    return true;
+  }
+
+  /* ---------- sitemap ---------- */
+
+  /** junta ao inicio da fila as paginas de produto do sitemap cujo endereco/titulo tem as palavras-chave */
+  async seedFromSitemaps(starts) {
+    if (!this.matchers.length) {
+      this.onLog('Sitemap: indica palavras-chave para escolher os produtos (o sitemap tem milhares de páginas)');
+      return;
+    }
+    for (const origin of [...new Set(starts.map((u) => new URL(u).origin))]) {
+      const rules = this.opts.respectRobots ? await this.loadRobots(origin) : [];
+      let pending = LiteX.rankSitemaps(rules.sitemaps?.length ? rules.sitemaps : [origin + '/sitemap.xml']);
+      const done = new Set();
+      let files = 0, found = 0, added = 0;
+      while (pending.length && files < this.opts.maxSitemapFiles && this.running) {
+        const sm = pending.shift();
+        if (done.has(sm)) continue;
+        done.add(sm);
+        if (/\.gz($|\?)/i.test(sm)) { this.onLog(`Sitemap comprimido ignorado: ${sm}`); continue; }
+        let r;
+        try { r = await this.fetchText(sm, { timeout: 45000, maxTries: 2 }); } catch (e) { this.onLog(`Sitemap indisponível: ${sm} (${e.message})`); continue; }
+        if (!r.ok) { this.onLog(`Sitemap ${sm}: HTTP ${r.status}`); continue; }
+        files++;
+        const { sitemaps, urls } = LiteX.parseSitemap(r.text);
+        // indice: so os sub-sitemaps que parecem de produtos (paginas, categorias, blog... ficam para o fim)
+        pending = LiteX.rankSitemaps([...pending, ...sitemaps.filter((x) => !done.has(x))]);
+        for (const { loc, title } of urls) {
+          let slug = '';
+          try { slug = decodeURIComponent(new URL(loc).pathname).replace(/[-_/]+/g, ' '); } catch { continue; }
+          if (!Object.keys(this.findKeywords(`${title} ${slug}`).hits).length) continue;
+          found++;
+          if (this.opts.respectRobots && !this.robotsAllows(loc, rules)) continue;
+          const n = this.normalize(loc);
+          if (n && this.enqueue(n, this.opts.maxDepth, sm, { product: true, title })) added++;
+        }
+        this.onLog(`Sitemap ${sm.split('/').pop()}: ${urls.length} endereços, ${found} com as palavras-chave até agora`);
+      }
+      if (files) {
+        this.onLog(`Sitemap de ${new URL(origin).hostname}: ${added} páginas de produto em fila` +
+          (found > added ? ` (${found - added} ficaram de fora — aumenta "Máx. páginas" para ver todas)` : ''));
+      } else {
+        this.onLog(`Sitemap de ${new URL(origin).hostname}: não encontrado`);
+      }
+    }
   }
 
   async start() {
@@ -674,6 +735,7 @@ class Crawler {
         this.queue.push({ url: s, depth: 0, from: null });
       }
     }
+    if (this.opts.useSitemap) await this.seedFromSitemaps(starts);
 
     await Promise.all(Array.from({ length: this.opts.concurrency }, () => this.worker()));
 
@@ -702,7 +764,7 @@ class Crawler {
     }
   }
 
-  async visit({ url, depth, from }) {
+  async visit({ url, depth, from, product }) {
     const row = { url, depth, from, status: null, title: '', links: [], ms: 0, error: '' };
 
     try {
@@ -749,6 +811,13 @@ class Crawler {
           if (!row.title) row.title = `PrestaShop — ${products.length} produtos`;
           this.addItems(products, row);
           for (const link of row.links) this.enqueue(link, depth + 1, url);
+        } else if (product && (!r.type || r.type.includes('html'))) {
+          // pagina de produto vinda do sitemap: so o produto principal (nao os relacionados)
+          const p = LiteX.productFromHtml(r.text, url);
+          const parsed = this.parse(r.text, url);
+          delete parsed.products;
+          Object.assign(row, parsed, { links: [] });
+          this.addItems(p && p.price != null ? [this.makeItem(p, 'sitemap', url)] : [], row);
         } else if (!r.type || r.type.includes('html')) {
           const parsed = this.parse(r.text, url);
           const products = parsed.products;

@@ -103,6 +103,29 @@
   const shop = SiteCheck.classify(R(GLOBALDATA.replace('</head>', '<script src="https://cdn.shopify.com/s/x.js"></script></head>')), u);
   ok(shop.platform === 'Shopify' && /Shopify/.test(shop.notes.join(' ')), 'plataforma Shopify identificada');
 
+  group('Rádio Popular (microdata) e sitemap');
+  {
+    const tile = (name, price, old, slug, img) => `<article class="product-grid-module module product link ECI " itemprop="itemListElement" itemscope itemtype="http://schema.org/Product"> <div class="mobile"> <meta itemprop="name" content="${name}" /> <meta itemprop="sku" content="1351121" /> <meta itemprop="gtin13" content="8806096833339" /> <div itemprop="brand" itemscope itemtype="http://schema.org/Brand"> <meta itemprop="name" content="LG"> </div> <div class="flags"><div class="flags-item standard">Até 10x Sem Juros</div></div> <div class="designation px-2" itemprop="name" content="${name}"> <a href="https://www.radiopopular.pt/produto/${slug}" target="_top"> ${name} </a> </div> <div class="image wrapper"> <a href="https://www.radiopopular.pt/produto/${slug}" itemprop="url"> <img src="https://www.radiopopular.pt/includes/imgs/1x1.png" loading="lazy" style="background-image:url('https://x.pt/${img}.jpg');" alt="${name}" itemprop="image" content="https://x.pt/${img}.jpg"> </a> </div> <div class="data cb" itemprop="offers" itemscope="" itemtype="http://schema.org/Offer"> <a href="/entrega" class="message-stock">Entrega em 1 a 2 dias úteis </a> <meta itemprop="priceCurrency" content="EUR"> <div class="promotion promotion-pvpr"><p class="promotion-number">-27%</p><p class="promotion-text">sobre PVPR</p></div> <div class="data-bottom">${old ? `<div class="old-price notranslate fl"><p class="rp-body-3 old-price__pvpr">PVPR*</p><span class="no-strike rp-body-3">€${old}</span><sup class="no-strike rp-sup">,99</sup></div>` : ''} <div class="product-footer"> <div class="price notranslate fl" itemprop="price" content="${price}">${Math.floor(price)}<sup>,99</sup></div> </div> <meta itemprop="availability" content="http://schema.org/InStock" /> </div> </div> </div> </article>`;
+    const cat = `<html><body><div class="viewport">${tile('MONITOR LED LG 27U411B-B', 79.99, 109, 'monitor-led-lg-27u411b-b', 'a')}${tile('MONITOR LED GAMING AOC CQ32G4VE', 159.99, 229, 'monitor-led-gam-aoc', 'b')}${tile('MONITOR LED GAMING LG 25G523B-B', 99.99, null, 'monitor-lg-25g', 'c')}</div></body></html>`;
+    const L = LiteX.listingFromHtml(cat, 'https://www.radiopopular.pt/categoria/monitores-3');
+    ok(L.length === 3, 'lista: 3 produtos', L.length);
+    ok(L[0].price === 79.99 && L[0].oldPrice === 109.99 && L[0].discount === 27, 'preço 79,99 e PVPR 109,99 ("€109</span><sup>,99")', [L[0].price, L[0].oldPrice]);
+    ok(L[0].image === 'https://x.pt/a.jpg', 'imagem real em vez do 1x1.png', L[0].image);
+    ok(L[0].availability === 'in' && L[2].oldPrice == null, 'stock por microdata; sem PVPR fica sem preço antigo');
+    const c = new Crawler({ startUrls: ['https://www.radiopopular.pt/categoria/monitores-3'] });
+    const parsed = c.parse(cat, 'https://www.radiopopular.pt/categoria/monitores-3');
+    ok(parsed.products.filter((p) => p.price != null).length === 3 && parsed.products.some((p) => p.price === 159.99 && p.oldPrice === 229.99), 'crawler no browser lê os mesmos 3 produtos', parsed.products.map((p) => [p.price, p.oldPrice]));
+    // pagina de produto com outro produto (vistos recentemente) antes do principal
+    const prod = `<html><head><meta property="og:title" content="MONITOR LED LG 27U411B-B | Ao melhor preço radiopopular.pt"></head><body><nav>${tile('MONITOR LED PHILIPS 27E1N1100A', 89.99, null, 'philips', 'p')}</nav><h1>MONITOR LED LG 27U411B-B</h1><div itemscope itemtype="http://schema.org/Product"><meta itemprop="name" content="MONITOR LED LG 27U411B-B" /><div class="old-price notranslate fl"><p>PVPR*</p><span class="no-strike">€109</span><sup>,99</sup></div><div class="price" itemprop="price" content="79.99">79<sup>,99</sup></div></div></body></html>`;
+    const P = LiteX.productFromHtml(prod, 'https://www.radiopopular.pt/produto/monitor-led-lg-27u411b-b');
+    ok(P.name === 'MONITOR LED LG 27U411B-B' && P.price === 79.99 && P.oldPrice === 109.99, 'página de produto: escolhe o produto principal, não o relacionado', [P.name, P.price, P.oldPrice]);
+    const idx = LiteX.parseSitemap('<sitemapindex><sitemap><loc>https://s3/sitemap-paginas.xml</loc></sitemap><sitemap><loc>https://s3/sitemap-produtos-00.xml</loc></sitemap></sitemapindex>');
+    ok(LiteX.rankSitemaps(idx.sitemaps)[0].endsWith('produtos-00.xml'), 'sitemap: os de produtos primeiro');
+    const us = LiteX.parseSitemap('<urlset><url><loc>https://www.radiopopular.pt/produto/monitor-led-lg</loc><image:image><image:title><![CDATA[MONITOR LED LG]]></image:title></image:image></url><url><loc>https://www.radiopopular.pt/produto/frigorifico</loc></url></urlset>');
+    ok(us.urls.length === 2 && us.urls[0].title === 'MONITOR LED LG', 'sitemap: endereços e títulos das imagens');
+    ok(JSON.stringify(LiteX.robotsSitemaps('User-agent: *\nAllow: /files/sitemaps/\n\nSitemap: https://s3/sitemap.xml')) === '["https://s3/sitemap.xml"]', 'robots.txt: linhas Sitemap');
+  }
+
   group('Formato de preço francês');
   ok(LiteX.parsePrice('279€98') === 279.98 && Crawler.parsePrice('1 299€99') === 1299.99, '"279€98" e "1 299€99" lidos corretamente');
   ok(JSON.stringify(Crawler.pricesIn('Lave-linge 279€98 ou 119€')) === '[279.98,119]', 'vários preços no formato francês');

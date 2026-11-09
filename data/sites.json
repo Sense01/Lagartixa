@@ -360,10 +360,35 @@
       "domain": "radiopopular.pt",
       "country": "PT",
       "categories": [
-        "eletronica"
+        "eletronica",
+        "informatica"
       ],
-      "status": "blocked",
-      "notes": "Recusa pedidos de servidores."
+      "status": "ok",
+      "notes": "As categorias só mostram os primeiros 12 produtos (o resto é carregado por JavaScript). Com 'Procurar também no sitemap da loja' (ligado automaticamente ao carregar em Usar), a app lê o sitemap — o único caminho que o robots.txt indica — e visita as páginas de produto com as tuas palavras-chave. As páginas são pesadas (cerca de 1 MB cada): para 'monitor' convém Máx. páginas ≥ 300.",
+      "method": "HTML (microdata) + sitemap",
+      "sitemap": true,
+      "starts": [
+        {
+          "label": "Monitores",
+          "url": "https://www.radiopopular.pt/categoria/monitores-3"
+        },
+        {
+          "label": "Monitores gaming",
+          "url": "https://www.radiopopular.pt/categoria/monitores-gaming"
+        },
+        {
+          "label": "Monitores LED 18\"–31\"",
+          "url": "https://www.radiopopular.pt/categoria/monitores-led-18-31"
+        },
+        {
+          "label": "Monitores LED 32\" ou mais",
+          "url": "https://www.radiopopular.pt/categoria/monitores-led-32"
+        },
+        {
+          "label": "Monitores portáteis",
+          "url": "https://www.radiopopular.pt/categoria/monitores-portateis"
+        }
+      ]
     },
     {
       "id": "toysrus-pt",

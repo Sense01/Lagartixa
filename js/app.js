@@ -7,7 +7,7 @@
 /* ---------- definições ---------- */
 const FIELDS = ['sites', 'keywords', 'maxPages', 'maxDepth', 'concurrency', 'delay', 'proxy', 'customProxy',
   'minPrice', 'maxPrice', 'minDiscount', 'shotService', 'dealMode', 'itemSort'];
-const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'wholeWord', 'caseSensitive', 'notify',
+const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'useSitemap', 'wholeWord', 'caseSensitive', 'notify',
   'onlyGood', 'hideOut', 'onlyDrops'];
 
 function saveSettings() {
@@ -298,6 +298,7 @@ $('config').addEventListener('submit', async (e) => {
     sameSection: $('sameSection').checked,
     respectRobots: $('respectRobots').checked,
     stripQuery: $('stripQuery').checked,
+    useSitemap: $('useSitemap').checked,
   });
 
   crawler.onResult = (r, i) => { results.push(r); addRow(r, i); };

@@ -191,9 +191,11 @@ const SiteDir = (() => {
     $('sdList').innerHTML = list.map(cardHtml).join('') || '<p class="empty">Nenhuma loja com estes filtros.</p>';
   }
 
-  function useUrl(url, append) {
+  function useUrl(url, append, site) {
     const cur = splitList($('sites').value, /[\n\s,]+/);
     $('sites').value = append ? [...new Set([...cur, url])].join('\n') : url;
+    // lojas cujas listas só mostram os primeiros produtos: ligar a pesquisa no sitemap
+    if (site?.sitemap && $('useSitemap')) $('useSitemap').checked = true;
     $('config').scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast(append ? 'Loja juntada à lista de sites' : 'Loja escolhida — escreve as palavras-chave e carrega em ▶ Iniciar', 4000);
   }
@@ -246,7 +248,7 @@ const SiteDir = (() => {
     const s = allSites().find((x) => x.domain === card.dataset.domain);
     if (!s) return;
     const use = e.target.closest('.sd-use, .sd-add-one');
-    if (use) return useUrl(s.starts[+use.dataset.i].url, use.classList.contains('sd-add-one'));
+    if (use) return useUrl(s.starts[+use.dataset.i].url, use.classList.contains('sd-add-one'), s);
     if (e.target.closest('.sd-test')) return test(s, e.target.closest('.sd-test'));
     if (e.target.closest('.sd-del')) {
       write(K_MINE, mine().filter((x) => x.domain !== s.domain));

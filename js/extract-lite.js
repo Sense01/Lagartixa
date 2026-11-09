@@ -147,6 +147,13 @@ const LiteX = (() => {
     const itempropPrice = attr(html, /itemprop\s*=\s*["']price["'][^>]*content\s*=\s*["']([^"']+)["']/i) ||
       attr(html, /content\s*=\s*["']([\d.,]+)["'][^>]*itemprop\s*=\s*["']price["']/i);
     const salesPrice = attr(html, /class\s*=\s*["'][^"']*\bsales\b[^"']*["'][\s\S]{0,200}?content\s*=\s*["']([\d.,]+)["']/i);
+    // microdata: paginas com varios produtos (relacionados, vistos recentemente) -> escolher o bloco
+    // cujo nome coincide com o titulo da pagina
+    const micro = !main?.price ? mainMicrodata(html, url, meta('og:title') || stripTags(attr(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) || '')) : null;
+    if (micro && micro.price != null) {
+      return { ...micro, url, image: micro.image || (meta('og:image') ? absUrl(meta('og:image'), url) : ''),
+        availability: micro.availability || detectAvailability(meta('product:availability') || '') };
+    }
     const price = main?.price ?? parsePrice(meta('product:price:amount') || meta('og:price:amount') || itempropPrice || salesPrice);
     const name = main?.name || meta('og:title') || stripTags(attr(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) || '') || stripTags(attr(html, /<title[^>]*>([\s\S]*?)<\/title>/i) || '');
     let availability = main?.availability || detectAvailability(meta('product:availability') || meta('og:availability') || attr(html, /itemprop\s*=\s*["']availability["'][^>]*(?:href|content)\s*=\s*["']([^"']+)["']/i) || '');
@@ -162,6 +169,65 @@ const LiteX = (() => {
       url,
       availability,
     };
+  }
+
+  const norm = (t) => decode(String(t || '')).toLowerCase().replace(/\s*[|\u2013\u2014-]\s.*$/, '').replace(/\s+/g, ' ').trim();
+
+  /** bloco microdata (itemprop="name") do produto principal; null se nao houver um que coincida com o titulo */
+  function mainMicrodata(html, url, title) {
+    const want = norm(title);
+    if (!want || want.length < 4) return null;
+    const re = /itemprop\s*=\s*["']name["'][^>]*content\s*=\s*["']([^"']+)["']/gi;
+    let m;
+    while ((m = re.exec(html))) {
+      const got = norm(m[1]);
+      if (!got || (got !== want && !want.startsWith(got) && !got.startsWith(want))) continue;
+      // segmento: deste nome ate ao proximo produto microdata (ou 20000 caracteres)
+      const nextProd = html.slice(m.index + 1, m.index + 20000).search(/itemtype\s*=\s*["'][^"']*schema\.org\/Product["']/i);
+      const seg = html.slice(m.index, nextProd > 0 ? m.index + 1 + nextProd : m.index + 20000);
+      const priceAttr = attr(seg, /itemprop\s*=\s*["']price["'][^>]*content\s*=\s*["']([^"']+)["']/i);
+      if (!priceAttr) continue;
+      const it = tileFromSegment(seg, url);
+      if (!it) continue;
+      it.name = decode(m[1]).trim();
+      it.price = parsePrice(priceAttr);
+      if (it.oldPrice != null && it.oldPrice <= it.price) it.oldPrice = null;
+      it.ean = it.ean || attr(seg, /itemprop\s*=\s*["']gtin13["'][^>]*content\s*=\s*["']([^"']+)["']/i) || '';
+      it.sku = it.sku || attr(seg, /itemprop\s*=\s*["']sku["'][^>]*content\s*=\s*["']([^"']+)["']/i) || '';
+      if (it.oldPrice && it.price && it.discount == null) it.discount = Math.round((1 - it.price / it.oldPrice) * 100);
+      return it;
+    }
+    return null;
+  }
+
+  /* ---------- sitemaps ---------- */
+
+  /** le um sitemap XML: { sitemaps: [url], urls: [{ loc, title }] } (titulo vem de image:title, se houver) */
+  function parseSitemap(xml) {
+    const text = String(xml || '');
+    const sitemaps = [], urls = [];
+    const cdata = (v) => decode(String(v || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')).trim();
+    for (const m of text.matchAll(/<sitemap\b[^>]*>([\s\S]*?)<\/sitemap>/gi)) {
+      const loc = cdata(attr(m[1], /<loc>([\s\S]*?)<\/loc>/i));
+      if (loc) sitemaps.push(loc);
+    }
+    for (const m of text.matchAll(/<url\b[^>]*>([\s\S]*?)<\/url>/gi)) {
+      const loc = cdata(attr(m[1], /<loc>([\s\S]*?)<\/loc>/i));
+      if (!loc) continue;
+      urls.push({ loc, title: cdata(attr(m[1], /<image:title>([\s\S]*?)<\/image:title>/i) || '') });
+    }
+    return { sitemaps, urls };
+  }
+
+  /** ordena sitemaps: os de produtos primeiro; paginas, categorias, blog e imagens no fim */
+  function rankSitemaps(list) {
+    const score = (u0) => { const u = String(u0).split('/').pop().replace(/sitemaps?/gi, ''); return /prod|item|artic|catalog/i.test(u) ? 0 : /pagin|page|categor|blog|news|post|image|video|marca|brand|store|loja/i.test(u) ? 2 : 1; };
+    return [...list].sort((a, b) => score(a) - score(b));
+  }
+
+  /** linhas "Sitemap:" de um robots.txt */
+  function robotsSitemaps(txt) {
+    return [...String(txt || '').matchAll(/^\s*sitemap\s*:\s*(\S+)/gim)].map((m) => m[1]);
   }
 
   /* ---------- listas de produtos (HTML) ---------- */
@@ -182,7 +248,7 @@ const LiteX = (() => {
   /** zonas [inicio, fim] de elementos riscados (preco antigo) */
   function struckRanges(seg) {
     const out = [];
-    const re = /<(s|del|strike)\b[^>]*>|<(\w+)\b[^>]*class\s*=\s*["'][^"']*(?:strike|old-price|price-old|list-price|regular-price|price-regular|was-price|price-before|crossed)[^"']*["'][^>]*>/gi;
+    const re = /<(s|del|strike)\b[^>]*>|<(\w+)\b[^>]*class\s*=\s*["'][^"']*(?:(?<!no-)strike|old-price|price-old|list-price|regular-price|price-regular|was-price|price-before|crossed)[^"']*["'][^>]*>/gi;
     let m;
     while ((m = re.exec(seg))) {
       const tag = (m[1] || m[2]).toLowerCase();
@@ -192,6 +258,8 @@ const LiteX = (() => {
   }
 
   function tileFromSegment(seg, base) {
+    // "79<sup>,99</sup>" / "\u20ac109</span><sup>,99</sup>" -> "79,99" / "\u20ac109,99"
+    seg = seg.replace(/(\d)((?:\s*<\/?(?:span|sup|sub|small|b|strong|em|i)\b[^>]*>\s*)+)([.,]\d{2})(?!\d)/gi, '$1$3$2');
     // preco: atributos content= perto de "price/sales/value"; os que estao em zonas riscadas sao o preco antigo
     const struck = struckRanges(seg);
     const inStruck = (i) => struck.some(([s, e]) => i >= s && i < e);
@@ -204,6 +272,10 @@ const LiteX = (() => {
       const v = parsePrice(m[1]);
       if (v == null) continue;
       if (inStruck(m.index)) { if (oldPrice == null) oldPrice = v; } else if (price == null) price = v;
+    }
+    if (price != null && oldPrice == null && struck.length) {
+      const sp = pricesIn(stripTags(struck.map(([s0, e0]) => seg.slice(s0, e0)).join(' '))).filter((v) => v > price);
+      if (sp.length) oldPrice = Math.max(...sp);
     }
     const text = stripTags(seg);
     if (price == null) {
@@ -221,14 +293,21 @@ const LiteX = (() => {
       links.find((a) => stripTags(a[2]).length > 8);
     const heading = stripTags(attr(seg, /<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>/i) || '');
     const img = seg.match(/<img\b[^>]*>/i)?.[0] || '';
-    const imgSrc = attr(img, /data-src\s*=\s*["']([^"']+)["']/i) || attr(img, /\ssrc\s*=\s*["']([^"']+)["']/i) || '';
+    const placeholder = (u) => !u || /^data:|1x1|blank|placeholder|spacer|pixel\.(gif|png)|loader\.gif/i.test(u);
+    const imgCands = [
+      attr(seg, /itemprop\s*=\s*["']image["'][^>]*content\s*=\s*["']([^"']+)["']/i),
+      attr(img, /data-src\s*=\s*["']([^"']+)["']/i),
+      attr(img, /\ssrc\s*=\s*["']([^"']+)["']/i),
+      attr(img, /background-image\s*:\s*url\(\s*['"]?([^'")]+)/i),
+    ];
+    const imgSrc = imgCands.find((u) => !placeholder(u)) || '';
     const name = (named && stripTags(named[2])) || heading || attr(img, /alt\s*=\s*["']([^"']+)["']/i) || '';
     const discount = (text.match(/-\s?(\d{1,2})\s?%/) || [])[1];
     return makeItem({
       name, price, oldPrice, discount,
       url: (named || links[0] || [])[1] || '',
-      image: imgSrc.startsWith('data:') ? '' : imgSrc,
-      availability: detectAvailability(text),
+      image: imgSrc,
+      availability: detectAvailability(attr(seg, /itemprop\s*=\s*["']availability["'][^>]*(?:href|content)\s*=\s*["']([^"']+)["']/i) || text),
     }, base);
   }
 
@@ -349,6 +428,7 @@ const LiteX = (() => {
   return {
     decode, stripTags, parsePrice, pricesIn, detectAvailability,
     jsonLdBlocks, productsFromJsonLd, productFromHtml, listingFromHtml,
+    mainMicrodata, parseSitemap, rankSitemaps, robotsSitemaps,
     isPrestaShopJson, prestaShopItems, lidlApiUrl, lidlItems,
     keywordRegexes, matchesFilters,
   };
