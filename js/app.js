@@ -14,6 +14,7 @@ function saveSettings() {
   const s = {};
   FIELDS.forEach((f) => (s[f] = $(f).value));
   CHECKS.forEach((c) => (s[c] = $(c).checked));
+  s.dealAuto2 = true;
   try { localStorage.setItem('crawler-settings', JSON.stringify(s)); } catch {}
 }
 
@@ -21,6 +22,7 @@ function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('crawler-settings') || '{}');
     if (s.proxy && s.proxy.includes('://')) s.proxy = 'auto';     // versões antigas
+    if (!s.dealAuto2 && s.dealMode === 'manual') s.dealMode = 'auto'; // v9: avaliação automática por omissão (uma vez)
     FIELDS.forEach((f) => {
       const el = $(f);
       if (s[f] == null) return;

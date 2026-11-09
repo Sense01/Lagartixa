@@ -74,17 +74,19 @@ async function evaluateDeal(it, { force = false } = {}) {
 }
 
 async function autoEvaluateDeals() {
-  const top = items.filter((it) => it.price != null && !it.deal && it.availability !== 'out')
-    .sort((a, b) => (b.discount ?? -1) - (a.discount ?? -1)).slice(0, 10);
+  // os produtos sem uma referencia fiavel (outras lojas, historico) sao avaliados pela IA, os mais promissores primeiro
+  const top = Value.needsAi(items, 12);
   if (!top.length) return;
-  toast(`💡 A avaliar ${top.length} produto(s)…`);
+  toast(`📊 A comparar preços de ${top.length} produto(s) na web…`);
   let good = 0, done = 0;
   for (const it of top) {
     const d = await evaluateDeal(it);
-    if (d?.error) { if (/proxy|Worker|API_KEY|chave|autorizada|limite/i.test(d.error)) break; continue; }
+    if (d?.error) { if (/proxy|Worker|API_KEY|chave|autorizada|limite/i.test(d.error)) { toast(`IA: ${d.error}`, 5000); break; } continue; }
     done++;
     if (verdictKey(d?.verdict) === 'bom') good++;
+    if ($('itemSort').value === 'deal') renderItems();     // reordena a medida que chegam os precos
+    Resale.renderSoon?.();
   }
-  if ($('itemSort').value === 'deal') renderItems();
-  if (done) notifyLocal('Avaliação concluída', good ? `${good} bom(ns) negócio(s) entre ${done} produto(s)` : `Nenhum bom negócio claro entre ${done} produto(s)`);
+  renderItems();
+  if (done) notifyLocal('Comparação de preços concluída', good ? `${good} bom(ns) negócio(s) entre ${done} produto(s)` : `Nenhum bom negócio claro entre ${done} produto(s)`);
 }

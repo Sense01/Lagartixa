@@ -14,12 +14,19 @@ const Value = (() => {
     ia: { w: 1, min: 8, label: () => 'preço típico (IA)' },
     historico: { w: 0.9, min: 8, label: (n) => `média do teu histórico (${n} registos)` },
     pvpr: { w: 0.6, min: 15, label: () => 'preço antigo anunciado pela loja' },
-    semelhantes: { w: 0.5, min: 25, label: (n) => `mediana de ${n} produtos semelhantes` },
+    semelhantes: { w: 0.15, min: Infinity, weak: true, label: (n) => `estimativa: mediana de ${n} produtos parecidos` },
   };
   const STOP = new Set(['de', 'da', 'do', 'para', 'com', 'e', 'the', 'pour', 'avec', 'et', 'en', 'a', 'o', 'le', 'la']);
 
   const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
   const median = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  /** tamanho/capacidade no nome (27", 27 polegadas, 1TB, 500GB, 65W…): produtos so sao parecidos se coincidir */
+  function sizeKey(name) {
+    const n = String(name || '').toLowerCase();
+    const m = n.match(/(\d{2}(?:[.,]\d)?)\s*(?:"|''|\u201d|pol|polegadas|inch)/) || n.match(/\b(\d+(?:[.,]\d+)?)\s*(tb|gb|mah|w|l|kg|cm|mm|hz)\b/);
+    return m ? (m[1] + (m[2] || 'in')).replace(',', '.') : '';
+  }
 
   /** tipo do produto: as duas primeiras palavras do nome ("MONITOR LED GAMING AOC…" -> "monitor led") */
   function typeKey(name) {
@@ -51,9 +58,11 @@ const Value = (() => {
     const byType = new Map();
     for (const it of priced) {
       const k = typeKey(it.name);
-      if (!k) continue;
-      if (!byType.has(k)) byType.set(k, []);
-      byType.get(k).push(it.price);
+      const sz = sizeKey(it.name);
+      if (!k || !sz) continue;          // sem tamanho no nome nao da para comparar com seguranca
+      const key = k + '|' + sz;
+      if (!byType.has(key)) byType.set(key, []);
+      byType.get(key).push(it.price);
     }
 
     const out = new Map();
@@ -80,8 +89,8 @@ const Value = (() => {
       if (it.oldPrice > it.price) cands.push({ basis: 'pvpr', ref: it.oldPrice, n: 1 });
 
       // 5. semelhantes (o mesmo tipo nao e o mesmo produto: referencia mais fraca) (pelo menos 4 do mesmo tipo, sem contar este)
-      const k = typeKey(it.name);
-      const peers = k ? (byType.get(k) || []) : [];
+      const k = typeKey(it.name), sz = sizeKey(it.name);
+      const peers = k && sz ? (byType.get(k + '|' + sz) || []) : [];
       if (peers.length >= 5) {
         const rest = [...peers]; rest.splice(rest.indexOf(it.price), 1);
         cands.push({ basis: 'semelhantes', ref: median(rest), n: rest.length });
@@ -95,7 +104,8 @@ const Value = (() => {
         ref: Math.round(best.ref * 100) / 100, pct, basis: best.basis, n: best.n,
         label: B.label(best.n),
         score: pct * B.w,
-        good: aiGood || pct >= B.min,
+        good: aiGood || (!B.weak && pct >= B.min),
+        weak: !!B.weak,
       });
     }
     return out;
@@ -110,12 +120,23 @@ const Value = (() => {
   }
 
   function html(it) {
+    if (it.deal?.loading) return `<div class="value v-flat">📊 <b>a comparar preços na web…</b></div>`;
     const v = info(it);
     if (!v) return '';
-    const cls = v.pct >= BASIS[v.basis].min ? 'v-up' : v.pct <= -5 ? 'v-down' : 'v-flat';
+    const cls = v.weak ? 'v-flat v-weak' : v.pct >= BASIS[v.basis].min ? 'v-up' : v.pct <= -5 ? 'v-down' : 'v-flat';
     const txt = v.pct > 0 ? `${v.pct}% abaixo` : v.pct < 0 ? `${-v.pct}% acima` : 'igual';
     return `<div class="value ${cls}" title="Comparado com ${esc(v.label)}">📊 <b>${txt}</b> <small>${esc(v.label)}: ${fmtPrice(v.ref)}</small></div>`;
   }
 
-  return { analyze, info, html, typeKey, BASIS, _v: 0 };
+  /** candidatos para a IA avaliar sozinha: sem referencia boa (so PVPR, estimativa ou nada), os mais promissores primeiro */
+  function needsAi(list, max = 12) {
+    const V = analyze(list);
+    return list
+      .filter((it) => it.price > 0 && it.availability !== 'out' && !it.deal)
+      .filter((it) => { const v = V.get(it); return !v || ['pvpr', 'semelhantes'].includes(v.basis); })
+      .sort((a, b) => ((V.get(b)?.pct ?? 0) + (b.discount ?? 0)) - ((V.get(a)?.pct ?? 0) + (a.discount ?? 0)))
+      .slice(0, max);
+  }
+
+  return { analyze, info, html, typeKey, sizeKey, needsAi, BASIS, _v: 0 };
 })();

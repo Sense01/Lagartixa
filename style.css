@@ -878,3 +878,4 @@ button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: 
 .value small { font-size: 0.72rem; }
 .value.v-up b { color: var(--ok); }
 .value.v-down b { color: var(--err); }
+.value.v-weak b { color: var(--muted); font-weight: 600; }
