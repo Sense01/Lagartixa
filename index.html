@@ -58,7 +58,7 @@
         </select>
         <select id="sdStatus" aria-label="Estado">
           <option value="">Todos os estados</option><option value="ok">✅ Funcionam</option>
-          <option value="partial">⚠️ Parcial</option><option value="blocked">⛔ Bloqueiam</option>
+          <option value="partial">⚠️ Parcial</option><option value="blocked">⛔ Bloqueiam</option><option value="resale">📈 Bons para o simulador</option>
         </select>
       </div>
       <div id="sdList" class="sd-list"></div>
@@ -221,9 +221,11 @@
       <div id="rsParams" class="rs-params"></div>
       <div class="buttons">
         <button type="button" id="rsRun" class="primary">▶ Simular</button>
+        <button type="button" id="rsFetch">💡 Obter preços de revenda</button>
         <button type="button" id="rsReset">Repor valores de partida</button>
         <span id="rsSummary" class="rs-sum"></span>
       </div>
+      <div id="rsTip" class="rs-tip hidden"></div>
       <div id="rsResult"></div>
       <form id="rsAdd" class="rs-add">
         <input id="rsAddName" placeholder="Produto (ex.: LEGO 10311)" required>

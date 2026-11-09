@@ -35,7 +35,8 @@
           "url": "https://www.lidl.pt/q/search?q=lego"
         }
       ],
-      "notes": "Usa a API de pesquisa do Lidl (rápida e completa). Troca o termo depois de q= para pesquisar outra coisa."
+      "notes": "Usa a API de pesquisa do Lidl (rápida e completa). Troca o termo depois de q= para pesquisar outra coisa.",
+      "resale": true
     },
     {
       "id": "lidl-fr",
@@ -59,7 +60,8 @@
           "url": "https://www.lidl.fr/q/search?q=parkside"
         }
       ],
-      "notes": "Qualquer página de pesquisa/promoções do Lidl (/q/query/… ou /q/search?…) funciona."
+      "notes": "Qualquer página de pesquisa/promoções do Lidl (/q/query/… ou /q/search?…) funciona.",
+      "resale": true
     },
     {
       "id": "globaldata",
@@ -81,7 +83,8 @@
           "url": "https://www.globaldata.pt/componentes/cooling/ventoinhas"
         }
       ],
-      "notes": "A pesquisa (/search) é proibida no robots.txt — usa páginas de categoria. Com 'Ficar dentro da secção', começar em /componentes percorre as subcategorias."
+      "notes": "A pesquisa (/search) é proibida no robots.txt — usa páginas de categoria. Com 'Ficar dentro da secção', começar em /componentes percorre as subcategorias.",
+      "resale": true
     },
     {
       "id": "coolmatica",
@@ -149,7 +152,8 @@
           "url": "https://www.lego.com/pt-pt/categories/new-sets-and-products"
         }
       ],
-      "notes": "Preços oficiais (PVP) — ótima referência para comparar com outras lojas. A página de promoções mostra os primeiros ~22 produtos (os restantes carregam com 'Carregar mais')."
+      "notes": "Preços oficiais (PVP) — ótima referência para comparar com outras lojas. A página de promoções mostra os primeiros ~22 produtos (os restantes carregam com 'Carregar mais').",
+      "resale": true
     },
     {
       "id": "wook",
@@ -388,7 +392,8 @@
           "label": "Monitores portáteis",
           "url": "https://www.radiopopular.pt/categoria/monitores-portateis"
         }
-      ]
+      ],
+      "resale": true
     },
     {
       "id": "toysrus-pt",
@@ -462,7 +467,8 @@
           "url": "https://loja.misterpc.pt/acessorios/"
         }
       ],
-      "notes": "Loja do Porto, especialista em recondicionados. Mostra o preço atual e o de referência, por isso o desconto é calculado. As páginas /page/N/ são permitidas; ordenar e filtrar (?sort=, &page=) é proibido no robots.txt."
+      "notes": "Loja do Porto, especialista em recondicionados. Mostra o preço atual e o de referência, por isso o desconto é calculado. As páginas /page/N/ são permitidas; ordenar e filtrar (?sort=, &page=) é proibido no robots.txt.",
+      "resale": true
     },
     {
       "id": "assismatica",
@@ -613,7 +619,8 @@
           "url": "https://www.ludum.fr/8599-jeux-enfant"
         }
       ],
-      "notes": "Muitos descontos (até -70%). O robots.txt proíbe qualquer endereço com parâmetros (?page=), por isso só a página 1 de cada categoria é lida; usa as subcategorias para cobrir mais."
+      "notes": "Muitos descontos (até -70%). O robots.txt proíbe qualquer endereço com parâmetros (?page=), por isso só a página 1 de cada categoria é lida; usa as subcategorias para cobrir mais.",
+      "resale": true
     },
     {
       "id": "mhr",
@@ -807,7 +814,8 @@
           "url": "https://www.leyaonline.com/pt/escolar"
         }
       ],
-      "notes": "Loja do grupo LeYa, forte em material escolar e livros de apoio. 24 produtos por página; /pt/loja/ e /livrosescolares/ são proibidos no robots.txt."
+      "notes": "Loja do grupo LeYa, forte em material escolar e livros de apoio. 24 produtos por página; /pt/loja/ e /livrosescolares/ são proibidos no robots.txt.",
+      "resale": true
     },
     {
       "id": "rueducommerce",
@@ -834,7 +842,8 @@
           "url": "https://www.rueducommerce.fr/v/70004/electromenager/"
         }
       ],
-      "notes": "Do grupo LDLC. As páginas /v/ mostram os mais vendidos e as melhores ofertas, com preço antigo e desconto. A paginação (/produits/page) e /recherche/ são proibidas no robots.txt."
+      "notes": "Do grupo LDLC. As páginas /v/ mostram os mais vendidos e as melhores ofertas, com preço antigo e desconto. A paginação (/produits/page) e /recherche/ são proibidas no robots.txt.",
+      "resale": true
     },
     {
       "id": "joueclub",
@@ -892,7 +901,8 @@
           "url": "https://www.espritjeu.com/jeux-pour-enfants.html"
         }
       ],
-      "notes": "Loja de jogos de tabuleiro com muitos packs em promoção (preço riscado). 30 produtos por página (?numPage=N é permitido); filtros proibidos."
+      "notes": "Loja de jogos de tabuleiro com muitos packs em promoção (preço riscado). 30 produtos por página (?numPage=N é permitido); filtros proibidos.",
+      "resale": true
     },
     {
       "id": "electrodepot",

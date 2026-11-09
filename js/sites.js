@@ -100,7 +100,7 @@ const SiteCheck = (() => {
 })();
 
 const SiteDir = (() => {
-  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [] };   // página de testes
+  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], showResale() {} };   // página de testes
   const K_MINE = (window.STORE_PREFIX || '') + 'crawler-mysites';
   const K_CHECKS = (window.STORE_PREFIX || '') + 'crawler-sitechecks';
   const STATUS = {
@@ -164,7 +164,7 @@ const SiteDir = (() => {
         <button type="button" class="sd-add-one" data-i="${i}" title="Juntar aos sites já escritos (para comparar lojas)" ${st === 'blocked' || st === 'js' || st === 'robots' ? 'disabled' : ''}>＋</button>
       </div>`).join('');
     return `<div class="sd-card st-${cls}" data-domain="${esc(s.domain)}">
-      <div class="sd-head"><span class="flag">${FLAG[s.country] || '🌐'}</span><b>${esc(s.name)}</b>${s.user ? '<span class="sd-mine">a minha</span>' : ''}<span class="sd-badge">${label}</span></div>
+      <div class="sd-head"><span class="flag">${FLAG[s.country] || '🌐'}</span><b>${esc(s.name)}</b>${s.user ? '<span class="sd-mine">a minha</span>' : ''}<span class="sd-badge">${label}</span>${s.resale ? '<span class="sd-badge sd-rs" title="Mostra o preço antigo/PVPR: o simulador de revenda tem uma referência">📈</span>' : ''}</div>
       <small class="sd-meta">${esc(s.domain)}${cats ? ` · ${esc(cats)}` : ''}${s.method ? ` · ${esc(s.method)}` : ''}</small>
       ${s.notes ? `<p class="sd-notes">${esc(s.notes)}</p>` : ''}
       ${starts ? `<div class="sd-starts">${starts}</div>` : ''}
@@ -184,7 +184,7 @@ const SiteDir = (() => {
       return (!q || `${s.name} ${s.domain} ${s.notes || ''}`.toLowerCase().includes(q)) &&
         (!cat || (s.categories || []).includes(cat)) &&
         (!country || s.country === country) &&
-        (!status || (status === 'blocked' ? ['blocked', 'js', 'robots'].includes(st) : st === status));
+        (!status || (status === 'resale' ? s.resale && st === 'ok' : status === 'blocked' ? ['blocked', 'js', 'robots'].includes(st) : st === status));
     }).sort((a, b) => (ORDER[effectiveStatus(a)] ?? 9) - (ORDER[effectiveStatus(b)] ?? 9) || a.name.localeCompare(b.name));
     const okN = allSites().filter((s) => effectiveStatus(s) === 'ok').length;
     $('sdCount').textContent = `${okN} funcionam`;
@@ -259,5 +259,13 @@ const SiteDir = (() => {
   $('sdAddBtn').addEventListener('click', addFromUrl);
   $('sdAddUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFromUrl(); } });
 
-  return { load, render, allSites };
+  function showResale() {
+    $('sitesPanel').open = true;
+    $('sdStatus').value = 'resale';
+    $('sdCat').value = ''; $('sdCountry').value = ''; $('sdSearch').value = '';
+    render();
+    $('sitesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  return { load, render, allSites, showResale };
 })();

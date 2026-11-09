@@ -259,6 +259,18 @@ const Resale = (() => {
     const noRef = lastRows.filter((r) => !r.calc).length;
     $('rsSummary').textContent = `${good.length} de ${lastRows.length} produtos com retorno ≥ ${p.minRoi}%` +
       (noRef ? ` · ${noRef} sem preço de revenda (escreve-o ou usa 💡 Negócio?)` : '');
+    // poucos produtos com referencia: explicar como arranjar uma
+    const weak = lastRows.filter((r) => !r.calc || ['antigo', 'historico'].includes(r.mk.source)).length;
+    const tip = $('rsTip');
+    if (tip) {
+      const show = items.length > 0 && (noRef > 0 || weak > lastRows.length / 2);
+      tip.classList.toggle('hidden', !show && items.length > 0);
+      tip.innerHTML = !items.length
+        ? `Ainda não há produtos. Escolhe uma loja que mostra o preço antigo (o simulador precisa de um preço de revenda) — <button type="button" class="link" data-rs="lojas">📈 ver lojas boas para o simulador</button> — ou junta produtos à mão no formulário abaixo.`
+        : `<b>${noRef}</b> produto(s) sem preço de revenda e <b>${weak - noRef}</b> só com o preço antigo (otimista).
+          <button type="button" class="link" data-rs="ia">💡 Pedir à IA o preço noutras lojas</button> (até 10 de cada vez, conta para o limite diário),
+          escreve tu o preço a que se vende, ou <button type="button" class="link" data-rs="lojas">📈 usa lojas que mostram preço antigo</button>.`;
+    }
   }
   const renderSoon = debounce(render, 300);
 
@@ -267,6 +279,28 @@ const Resale = (() => {
     const cands = lastRows.filter((r) => r.calc).map((r) => ({ buy: r.it.price, market: r.mk.value }));
     $('rsResult').innerHTML = '<div class="rs-res">⏳ A simular…</div>';
     setTimeout(() => { $('rsResult').innerHTML = resultHtml(simulate(cands, p, { runs: 2000, seed: Date.now() % 1e9 }), p); }, 30);
+  }
+
+  /** pede a avaliacao da IA (preco noutras lojas) para os produtos sem referencia ou so com PVPR */
+  let fetching = false;
+  async function fetchPrices() {
+    if (fetching) return;
+    const todo = lastRows.filter((r) => !r.it.own && (!r.calc || ['antigo', 'historico'].includes(r.mk.source)))
+      .sort((a, b) => (b.it.discount ?? -1) - (a.it.discount ?? -1)).slice(0, 10).map((r) => r.it);
+    if (!todo.length) return toast('Todos os produtos já têm um preço de revenda', 3000);
+    if (typeof evaluateDeal !== 'function' || !workerBase()) return toast('Configura "O meu proxy" (o teu Worker) para usar a IA', 4000);
+    fetching = true;
+    const btn = $('rsFetch'); btn.disabled = true;
+    let done = 0, failed = '';
+    for (const it of todo) {
+      btn.textContent = `💡 ${done + 1}/${todo.length}…`;
+      const d = await evaluateDeal(it);
+      if (d?.error) { failed = d.error; if (/proxy|Worker|API_KEY|chave|autorizada|limite/i.test(d.error)) break; } else done++;
+      render();
+    }
+    btn.disabled = false; btn.textContent = '💡 Obter preços de revenda'; fetching = false;
+    render();
+    toast(done ? `💡 ${done} preço(s) de revenda obtidos` : `Não foi possível: ${failed}`, 4000);
   }
 
   function init() {
@@ -306,6 +340,13 @@ const Resale = (() => {
       $('resalePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     $('rsRun').addEventListener('click', run);
+    $('rsFetch').addEventListener('click', fetchPrices);
+    $('rsTip')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rs]');
+      if (!b) return;
+      if (b.dataset.rs === 'ia') fetchPrices();
+      else SiteDir.showResale();
+    });
     $('rsReset').addEventListener('click', () => {
       saveParams({ ...DEFAULTS });
       $('rsParams').dataset.ready = '';

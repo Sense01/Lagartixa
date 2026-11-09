@@ -867,3 +867,8 @@ details.panel[open] > summary { margin-bottom: 0.8rem; }
 .rs-del { all: unset; cursor: pointer; color: var(--err); font-size: 0.7rem; }
 button.small { padding: 0.45rem 0.8rem; font-size: 0.82rem; }
 @media (max-width: 640px) { .rs-add { grid-template-columns: 1fr 1fr; } .rs-add > :first-child { grid-column: 1 / -1; } }
+
+.rs-tip { margin: 0.6rem 0; padding: 0.7rem 0.9rem; border-radius: 12px; background: var(--glass-a); font-size: 0.82rem; line-height: 1.55; color: var(--muted); }
+.rs-tip b { color: var(--text); }
+button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.sd-rs { margin-left: 0.3rem; }
