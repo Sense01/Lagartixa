@@ -239,7 +239,7 @@
       "categories": [
         "brinquedos"
       ],
-      "status": "ok",
+      "status": "blocked",
       "method": "HTML (deteção automática)",
       "starts": [
         {
@@ -251,7 +251,7 @@
           "url": "https://www.king-jouet.com/jeux-jouets/top-calendriers-de-l-avent/page1.htm"
         }
       ],
-      "notes": "O robots.txt só permite a página 1 de cada lista e proíbe a pesquisa. Mostra preço antigo e desconto."
+      "notes": "Funcionava até 09/11/2026 à tarde; nesse dia, à noite, passou a recusar o acesso a partir de servidores (\"acesso recusado\"). Usa 🔍 Testar agora para ver se voltou."
     },
     {
       "id": "ldlc",
@@ -1204,9 +1204,6 @@
         ],
         "auchan-pt": [
           "Brinquedos"
-        ],
-        "king-jouet": [
-          "LEGO — seleção de Natal"
         ],
         "joueclub": [
           "Construction et maquettes (LEGO…)"

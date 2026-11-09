@@ -167,6 +167,20 @@
     ok(Value.variantsOf(g[0], [...g, other]).length === 3, 'as outras 3 cores herdam a avaliação');
   }
 
+  group('Várias lojas ao mesmo tempo');
+  {
+    const c = new Crawler({ startUrls: ['https://www.lego.com/pt-pt/categories/sales-and-deals', 'https://www.joueclub.fr/x.html', 'https://www.lidl.pt/q/search?q=lego'], maxPages: 30, sameSection: false });
+    c.startHosts = new Set(['lego.com', 'joueclub.fr', 'lidl.pt']);
+    let added = 0;
+    for (let i = 0; i < 40; i++) if (c.enqueue(`https://www.lego.com/pt-pt/product/x-${10000 + i}`, 1, null)) added++;
+    ok(added === 10, 'loja grande fica com a sua parte (30 páginas ÷ 3 lojas = 10)', added);
+    ok(c.enqueue('https://www.joueclub.fr/p/lego-1.html', 1, null), 'as outras lojas continuam a ter lugar');
+    c.queue = [{ url: 'https://www.lego.com/a' }, { url: 'https://www.lego.com/b' }, { url: 'https://www.joueclub.fr/c' }];
+    c.visitedBy = new Map([['lego.com', 5]]);
+    ok(c.nextJob().url === 'https://www.joueclub.fr/c', 'a fila intercala as lojas (a menos visitada primeiro)');
+    ok(Store.productIdentity({ name: 'Robô Megatron e Veículo', url: 'https://www.lego.com/pt-pt/product/megatron-robot-vehicle-40924' }) === 'lego:40924', 'LEGO.com: número do set lido do endereço');
+  }
+
   group('Simulador de revenda');
   {
     const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };

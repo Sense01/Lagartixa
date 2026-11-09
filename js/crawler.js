@@ -48,6 +48,7 @@ class Crawler {
     this.running = false;
     this.active = 0;
     this.robotsRules = new Map();
+    this.hostCount = new Map();       // paginas em fila/visitadas por loja
     this.controllers = new Set();
     this.keywordTotals = {};
     this.keywordPages = {};
@@ -668,12 +669,20 @@ class Crawler {
   enqueue(url, depth, from, extra) {
     if (this.seen.has(url)) return false;
     if (this.seen.size >= this.opts.maxPages) return false;
+    // varias lojas: cada uma tem a sua parte das paginas (uma loja grande nao gasta tudo e deixa as outras a espera)
+    const host = this.hostKey(url);
+    if (this.startHosts && this.startHosts.size > 1) {
+      const cap = Math.ceil(this.opts.maxPages / this.startHosts.size);
+      if ((this.hostCount.get(host) || 0) >= cap) return false;
+    }
     if (!extra?.product) {
       if (depth > this.opts.maxDepth) return false;
       if (this.opts.sameDomain && !this.startHosts.has(this.hostKey(url))) return false;
       if (this.opts.sameSection && !this.inSection(url)) return false;
     }
     this.seen.add(url);
+    this.hostCount.set(host, (this.hostCount.get(host) || 0) + 1);
+    // fila intercalada por loja: a proxima pagina e sempre da loja com menos paginas pedidas
     this.queue.push({ url, depth, from, ...extra });
     return true;
   }
@@ -757,6 +766,7 @@ class Crawler {
     for (const s of starts) {
       if (!this.seen.has(s)) {
         this.seen.add(s);
+        this.hostCount.set(this.hostKey(s), (this.hostCount.get(this.hostKey(s)) || 0) + 1);
         this.queue.push({ url: s, depth: 0, from: null });
       }
     }
@@ -770,9 +780,24 @@ class Crawler {
     return { stopped };
   }
 
+  /** proximo pedido: intercala as lojas (a que tem menos paginas ja visitadas primeiro) */
+  nextJob() {
+    if (this.queue.length < 2 || !this.startHosts || this.startHosts.size < 2) return this.queue.shift();
+    this.visitedBy ||= new Map();
+    let bi = 0, best = Infinity;
+    for (let i = 0; i < this.queue.length; i++) {
+      const n = this.visitedBy.get(this.hostKey(this.queue[i].url)) || 0;
+      if (n < best) { best = n; bi = i; if (n === 0) break; }
+    }
+    const [job] = this.queue.splice(bi, 1);
+    const h = this.hostKey(job.url);
+    this.visitedBy.set(h, (this.visitedBy.get(h) || 0) + 1);
+    return job;
+  }
+
   async worker() {
     while (this.running) {
-      const job = this.queue.shift();
+      const job = this.nextJob();
       if (!job) {
         if (this.active === 0) return;
         await this.sleep(100);

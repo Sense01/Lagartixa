@@ -61,6 +61,12 @@ const Store = (() => {
       const m = text.match(/\((\d{4,6})\)/) || text.match(/\b(\d{5})\b/) || text.match(/(?:ref\.?|set|n\.?º?)\s*(\d{4,6})\b/i);
       if (m) return 'lego:' + m[1];
     }
+    // loja oficial LEGO: o numero do set esta no fim do endereco (/product/megatron-robot-vehicle-40924)
+    const u = String(it.url || '');
+    if (/(^|\.)lego\.com\//i.test(u.replace(/^https?:\/\//, '')) || /\blego\b/i.test(text)) {
+      const m = u.match(/-(\d{4,6})(?:[/?#]|$)/);
+      if (m) return 'lego:' + m[1];
+    }
     const mpn = String(it.mpn || '').trim();
     if (mpn.length >= 4 && it.brand) return `mpn:${it.brand.toLowerCase()}:${mpn.toLowerCase()}`;
     return null;
