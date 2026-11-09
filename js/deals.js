@@ -17,7 +17,7 @@ const VERDICTS = {
 const verdictKey = (v) => String(v || 'incerto').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function dealHtml(d) {
-  if (d.loading) return `<div class="deal-box loading">🔎 A pesquisar preços na web…</div>`;
+  if (d.loading) return `<div class="deal-box loading">${d.cooldown ? '⏳ A IA está em cooldown — continua sozinha daqui a pouco' : '🔎 A pesquisar preços na web…'}</div>`;
   if (d.error) return `<div class="deal-box v-caro">⚠️ ${esc(d.error)}</div>`;
   const [label, cls] = VERDICTS[verdictKey(d.verdict)] || VERDICTS.incerto;
   const nums = [
@@ -96,8 +96,8 @@ async function autoEvaluateDeals() {
     // limite por minuto do plano gratuito: espera o tempo indicado e tenta de novo (ate 3 vezes)
     for (let t = 0; t < 3 && d?.retryAfter; t++) {
       const wait = Math.min(90, d.retryAfter + 2);
-      it.deal = { loading: true }; refreshCard(it);
-      toast(`⏳ Limite por minuto da Groq (plano gratuito) — continuo daqui a ${wait} s (${done}/${top.length})`, 5000);
+      it.deal = { loading: true, cooldown: true }; refreshCard(it);
+      toast(`⏳ A IA está em cooldown — continuo daqui a ${wait} s (${done}/${top.length})`, 5000);
       await new Promise((r) => setTimeout(r, wait * 1000));
       d = await evaluateDeal(it, { force: true });
     }

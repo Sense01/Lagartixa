@@ -120,7 +120,7 @@ const Value = (() => {
   }
 
   function html(it) {
-    if (it.deal?.loading) return `<div class="value v-flat">📊 <b>a comparar preços na web…</b></div>`;
+    if (it.deal?.loading) return `<div class="value v-flat">📊 <b>${it.deal.cooldown ? 'A IA está em cooldown…' : 'a comparar preços na web…'}</b></div>`;
     const v = info(it);
     if (!v) return '';
     const cls = v.weak ? 'v-flat v-weak' : v.pct >= BASIS[v.basis].min ? 'v-up' : v.pct <= -5 ? 'v-down' : 'v-flat';
