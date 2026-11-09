@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=5">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -189,6 +189,7 @@
     <section class="panel hidden" id="itemsPanel">
       <div class="toolbar">
         <h2 class="grow">Produtos encontrados <span class="count" id="itemsCount">0</span></h2>
+        <button type="button" id="goResale" class="small">📈 Simular revenda</button>
         <select id="itemSort" aria-label="Ordenar">
           <option value="found">Ordem em que foram encontrados</option>
           <option value="deal">💡 Melhores negócios</option>
@@ -212,7 +213,7 @@
       <div id="compareList" class="cmp-list"></div>
     </section>
 
-    <details class="panel hidden" id="resalePanel">
+    <details class="panel" id="resalePanel">
       <summary><h2>📈 Simulador de revenda <small class="h-sub">comprar barato aqui e revender: dá lucro?</small></h2></summary>
       <p class="mon-desc">Para cada produto encontrado: preço de revenda (o teu valor, a avaliação 💡 da IA, outra loja ou o preço antigo),
         menos comissões, portes, embalagem, IVA e devoluções. Depois simula vários meses de compras e vendas, com o dinheiro reinvestido.
@@ -224,6 +225,12 @@
         <span id="rsSummary" class="rs-sum"></span>
       </div>
       <div id="rsResult"></div>
+      <form id="rsAdd" class="rs-add">
+        <input id="rsAddName" placeholder="Produto (ex.: LEGO 10311)" required>
+        <input id="rsAddBuy" type="number" step="any" min="0" placeholder="Compro por €" required>
+        <input id="rsAddSell" type="number" step="any" min="0" placeholder="Vendo por €" required>
+        <button type="submit">＋ Juntar</button>
+      </form>
       <div id="rsTable"></div>
     </details>
 
@@ -284,17 +291,17 @@
     </div>
   </div>
 
-  <script src="bg.js"></script>
-  <script src="js/util.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/extract-lite.js"></script>
-  <script src="js/crawler.js"></script>
-  <script src="js/deals.js"></script>
-  <script src="js/resale.js"></script>
-  <script src="js/items.js"></script>
-  <script src="js/watch.js"></script>
-  <script src="js/monitor.js"></script>
-  <script src="js/sites.js"></script>
-  <script src="js/app.js"></script>
+  <script src="bg.js?v=5"></script>
+  <script src="js/util.js?v=5"></script>
+  <script src="js/store.js?v=5"></script>
+  <script src="js/extract-lite.js?v=5"></script>
+  <script src="js/crawler.js?v=5"></script>
+  <script src="js/deals.js?v=5"></script>
+  <script src="js/resale.js?v=5"></script>
+  <script src="js/items.js?v=5"></script>
+  <script src="js/watch.js?v=5"></script>
+  <script src="js/monitor.js?v=5"></script>
+  <script src="js/sites.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

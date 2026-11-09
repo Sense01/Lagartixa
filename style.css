@@ -862,3 +862,8 @@ details.panel[open] > summary { margin-bottom: 0.8rem; }
   .rs-tr > :nth-child(1) { grid-column: 1 / -1; }
   .rs-th { display: none; }
 }
+
+.rs-add { display: grid; grid-template-columns: minmax(0, 2fr) 1fr 1fr auto; gap: 0.5rem; margin: 0.9rem 0 0.2rem; }
+.rs-del { all: unset; cursor: pointer; color: var(--err); font-size: 0.7rem; }
+button.small { padding: 0.45rem 0.8rem; font-size: 0.82rem; }
+@media (max-width: 640px) { .rs-add { grid-template-columns: 1fr 1fr; } .rs-add > :first-child { grid-column: 1 / -1; } }

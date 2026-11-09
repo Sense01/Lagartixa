@@ -278,7 +278,7 @@ $('config').addEventListener('submit', async (e) => {
   $('items').innerHTML = '';
   $('itemsPanel').classList.add('hidden');
   $('comparePanel').classList.add('hidden');
-  $('resalePanel')?.classList.add('hidden');
+  Resale.renderSoon();
   $('log').textContent = '';
   try { navigator.clearAppBadge?.(); } catch {}
 

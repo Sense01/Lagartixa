@@ -8,6 +8,9 @@
 const Resale = (() => {
   const K_PARAMS = (window.STORE_PREFIX || '') + 'crawler-resale';
   const K_MANUAL = (window.STORE_PREFIX || '') + 'crawler-resale-prices';
+  const K_EXTRA = (window.STORE_PREFIX || '') + 'crawler-resale-extra';   // produtos escritos a mao
+  const extra = () => { try { return JSON.parse(localStorage.getItem(K_EXTRA) || '[]'); } catch { return []; } };
+  const saveExtra = (l) => { try { localStorage.setItem(K_EXTRA, JSON.stringify(l)); } catch {} };
 
   const DEFAULTS = {
     feePct: 10,        // comissao da plataforma de venda (%)
@@ -169,9 +172,10 @@ const Resale = (() => {
   function rows() {
     const p = params();
     const man = manual();
-    return items
+    const own = extra().map((e) => ({ it: { name: e.name, url: e.url, price: e.buy, own: true }, mk: { value: e.sell, source: 'manual', label: 'escrito por ti' } }));
+    return [...own.map((r) => ({ ...r, calc: profit(r.it.price, r.mk.value, p) })), ...items
       .filter((it) => it.price > 0 && it.availability !== 'out')
-      .map((it) => { const mk = marketPrice(it, { manual: man }); return { it, mk, calc: profit(it.price, mk.value, p) }; })
+      .map((it) => { const mk = marketPrice(it, { manual: man }); return { it, mk, calc: profit(it.price, mk.value, p) }; })]
       .sort((a, b) => (b.calc?.roi ?? -1e9) - (a.calc?.roi ?? -1e9));
   }
 
@@ -185,14 +189,15 @@ const Resale = (() => {
   }
 
   function tableHtml(list) {
-    if (!list.length) return '<p class="empty">Faz uma pesquisa primeiro: os produtos encontrados aparecem aqui.</p>';
+    if (!list.length) return '<p class="empty">Faz uma pesquisa (os produtos encontrados aparecem aqui) ou junta produtos à mão no formulário acima.</p>';
     const show = list.slice(0, 40);
     return `<div class="rs-table"><div class="rs-tr rs-th"><span>Produto</span><span>Compra</span><span>Revenda</span><span>Lucro</span><span>Retorno</span></div>` +
       show.map(({ it, mk, calc }, i) => {
         const cls = !calc ? 'rs-na' : calc.net <= 0 ? 'rs-bad' : calc.roi >= params().minRoi ? 'rs-good' : 'rs-meh';
         const tip = calc ? `Venda ${fmtPrice(calc.sale)} − comissões ${fmtPrice(calc.fees)} − portes ${fmtPrice(calc.ship)} − embalagem ${fmtPrice(calc.packaging)}${calc.vat ? ` − IVA ${fmtPrice(calc.vat)}` : ''} − devoluções ${fmtPrice(calc.returns)} − compra ${fmtPrice(it.price)}` : 'Escreve o preço a que achas que vendes';
         return `<div class="rs-tr ${cls}" title="${esc(tip)}">
-          <a class="rs-name" href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.name || it.url)}<small>${esc(hostOf(it.url))}</small></a>
+          ${it.own ? `<span class="rs-name">${esc(it.name)}<small><button type="button" class="rs-del" data-del="${esc(it.url)}">remover</button></small></span>`
+            : `<a class="rs-name" href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.name || it.url)}<small>${esc(hostOf(it.url))}</small></a>`}
           <span>${fmtPrice(it.price)}</span>
           <span class="rs-mk"><input type="number" step="any" min="0" data-i="${i}" placeholder="?" value="${mk.value != null ? round2(mk.value) : ''}"><small>${esc(mk.label)}</small></span>
           <span class="rs-net">${calc ? fmtPrice(calc.net) : '—'}</span>
@@ -246,8 +251,6 @@ const Resale = (() => {
   function render() {
     const panel = $('resalePanel');
     if (!panel) return;
-    panel.classList.toggle('hidden', !items.length);
-    if (!items.length) return;
     const p = params();
     if (!$('rsParams').dataset.ready) { $('rsParams').innerHTML = paramsHtml(p); $('rsParams').dataset.ready = '1'; }
     lastRows = rows();
@@ -279,8 +282,28 @@ const Resale = (() => {
     $('rsTable').addEventListener('change', (e) => {
       const i = e.target.dataset.i;
       if (i == null) return;
-      setManual(lastRows[+i].it, e.target.value);
+      const row = lastRows[+i];
+      if (row.it.own) saveExtra(extra().map((x) => (x.url === row.it.url ? { ...x, sell: num(e.target.value, x.sell) } : x)));
+      else setManual(row.it, e.target.value);
       render();
+    });
+    $('rsTable').addEventListener('click', (e) => {
+      const del = e.target.closest('[data-del]');
+      if (!del) return;
+      saveExtra(extra().filter((x) => x.url !== del.dataset.del));
+      render();
+    });
+    $('rsAdd').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const buy = num($('rsAddBuy').value, 0), sell = num($('rsAddSell').value, 0);
+      if (!(buy > 0) || !(sell > 0)) return;
+      saveExtra([...extra(), { name: $('rsAddName').value.trim(), buy, sell, url: 'manual:' + Date.now() }]);
+      $('rsAdd').reset();
+      render();
+    });
+    $('goResale')?.addEventListener('click', () => {
+      $('resalePanel').open = true;
+      $('resalePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     $('rsRun').addEventListener('click', run);
     $('rsReset').addEventListener('click', () => {
@@ -290,6 +313,7 @@ const Resale = (() => {
       toast('Valores de partida repostos', 2500);
     });
     Store.on('deal', renderSoon);
+    render();
   }
 
   return { DEFAULTS, marketPrice, profit, simulate, render, renderSoon, init, params };
