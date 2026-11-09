@@ -181,6 +181,41 @@
     ok(Store.productIdentity({ name: 'Robô Megatron e Veículo', url: 'https://www.lego.com/pt-pt/product/megatron-robot-vehicle-40924' }) === 'lego:40924', 'LEGO.com: número do set lido do endereço');
   }
 
+  group('Mesmo modelo em lojas diferentes (pelo nome)');
+  {
+    const id = (name, brand) => Store.productIdentity({ name, brand: brand || '' });
+    ok(id('MONITOR LED AOC 27B36X') === id('Monitor AOC 27B36X 27" FHD IPS 100Hz') && id('MONITOR LED AOC 27B36X') === 'model:aoc:27b36x', 'AOC 27B36X igual na Rádio Popular e noutra loja');
+    ok(id('MONITOR LED PHILIPS 27E2N1500L/00') === id('Philips 27E2N1500L 27" IPS'), 'Philips 27E2N1500L/00 = 27E2N1500L');
+    ok(id('Kingston FURY Beast 32GB DDR5 5600MHz') === null && id('SSD Samsung 990 PRO 2TB') === null, 'capacidades e frequências não contam como modelo (evita misturar produtos)');
+    ok(id('MONITOR LED LG 27U411B-B') === 'model:lg:27u411bb' && id('Processador AMD Ryzen 7 7800X3D') === 'model:amd:7800x3d', 'LG 27U411B-B, Ryzen 7800X3D');
+    ok(id('Produto Genérico XK2000') === null, 'sem marca conhecida não arrisca');
+  }
+
+  group('Histórico vindo do Worker');
+  {
+    const u = 'https://www.loja.pt/p/monitor-hist-1';
+    const n = Store.importHistory({ x: { n: 'Monitor AOC 27B36X', u, s: 'loja.pt', id: 'model:aoc:27b36x', o: 149.99, h: [['2026-10-01', 129.99], ['2026-10-15', 124.99], ['2026-11-01', 119.99]] } });
+    const e = Store.getHistory(u);
+    ok(n === 3 && e.pts.length === 3 && e.o === 149.99 && e.id === 'model:aoc:27b36x', 'pontos do Worker juntados ao histórico local (com o preço antigo anunciado)', e);
+    ok(Store.importHistory({ x: { n: 'x', u, h: [['2026-11-01', 119.99], ['2026-11-02', 118]] } }) === 1, 'sem repetir dias que já existiam');
+  }
+
+  group('Promoções duvidosas');
+  {
+    const d = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+    const never = Value.promoCheck({ price: 99.99, oldPrice: 149.99 }, [[d(40), 104.99], [d(25), 99.99], [d(10), 102.99], [d(3), 104.99]]);
+    ok(never?.kind === 'never' && never.max === 104.99, '"era 149,99 €" mas o histórico nunca passou de 104,99 € → promoção duvidosa', never);
+    const pumped = Value.promoCheck({ price: 100, oldPrice: 130 }, [[d(70), 99], [d(55), 101], [d(40), 100], [d(15), 130], [d(5), 129]]);
+    ok(pumped?.kind === 'pumped' && Math.round(pumped.normal) === 100, 'subiu para 130 € e a "promoção" volta aos 100 € de sempre → duvidosa', pumped);
+    const real = Value.promoCheck({ price: 79.99, oldPrice: 109.99 }, [[d(60), 109.99], [d(40), 109.99], [d(20), 104.99], [d(5), 109.99]]);
+    ok(real === null, 'desconto verdadeiro (o preço antigo foi mesmo praticado) não é marcado');
+    ok(Value.promoCheck({ price: 50, oldPrice: 80 }, [[d(5), 55], [d(2), 52]]) === null, 'histórico curto demais: não julga');
+    const it = { name: 'Monitor X 27"', url: 'https://www.l.pt/p/x', price: 99.99, oldPrice: 149.99 };
+    const V = Value.analyze([it], { identity: () => '', otherStores: () => [], historyPts: () => [[d(40), 104.99], [d(25), 99.99], [d(10), 102.99], [d(3), 104.99]] });
+    const v = V.get(it);
+    ok(v.promo && !v.good && v.basis !== 'pvpr', 'promoção duvidosa: o preço antigo da loja deixa de contar e não é "bom negócio"', v);
+  }
+
   group('Simulador de revenda');
   {
     const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };

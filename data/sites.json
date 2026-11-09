@@ -1187,6 +1187,123 @@
       ],
       "status": "blocked",
       "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "conforama-pt",
+      "name": "Conforama",
+      "domain": "conforama.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica",
+        "bricolage"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Eletrodomésticos",
+          "url": "https://www.conforama.pt/pt/eletrodomesticos/c/WEB_7000"
+        },
+        {
+          "label": "Colchões",
+          "url": "https://www.conforama.pt/pt/colchoes/c/WEB_6033"
+        },
+        {
+          "label": "Sofás",
+          "url": "https://www.conforama.pt/pt/sofas/c/WEB_11025"
+        }
+      ],
+      "notes": "Cerca de 30 produtos por página, quase todos com preço antigo. O robots.txt permite as categorias e a paginação; proíbe pesquisa, ordenação, filtros e o outlet."
+    },
+    {
+      "id": "castorama",
+      "name": "Castorama",
+      "domain": "castorama.fr",
+      "country": "FR",
+      "categories": [
+        "bricolage"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Jardin et terrasse (populares e mais vendidos)",
+          "url": "https://www.castorama.fr/jardin-et-terrasse/cat_id_3399.cat"
+        },
+        {
+          "label": "Tondeuses et outils motorisés",
+          "url": "https://www.castorama.fr/jardin-et-terrasse/tondeuse-et-outil-motorise/cat_id_1456.cat"
+        },
+        {
+          "label": "Chauffage et climatisation",
+          "url": "https://www.castorama.fr/chauffage-climatisation-et-ventilation/cat_id_307.cat"
+        }
+      ],
+      "notes": "As páginas de categoria mostram só os produtos populares e os mais vendidos (cerca de 17, com preço antigo); a lista completa é carregada por JavaScript. Não consegui ler o robots.txt através do Worker — a app volta a verificá-lo em cada pesquisa."
+    },
+    {
+      "id": "sonvideo",
+      "name": "Son-Vidéo",
+      "domain": "son-video.com",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (cerca de 36 produtos)",
+          "url": "https://www.son-video.com/"
+        }
+      ],
+      "notes": "Áudio, hi-fi e TV. A página inicial traz cerca de 36 produtos com preço e um terço com preço antigo, mas as grelhas das categorias são carregadas por JavaScript."
+    },
+    {
+      "id": "auchan-fr",
+      "name": "Auchan France",
+      "domain": "auchan.fr",
+      "country": "FR",
+      "categories": [
+        "supermercado",
+        "brinquedos",
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "A página inicial abre (sem produtos), mas as categorias (ex. LEGO) recusam pedidos vindos de servidores."
+    },
+    {
+      "id": "but",
+      "name": "BUT",
+      "domain": "but.fr",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "maxitoys",
+      "name": "Maxi Toys",
+      "domain": "maxitoys.fr",
+      "country": "FR",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "picwictoys",
+      "name": "PicWicToys",
+      "domain": "picwictoys.com",
+      "country": "FR",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "⚠️ O domínio já não pertence à loja: mostra uma página de apostas/spam. Não usar."
     }
   ],
   "collections": [
@@ -1285,6 +1402,9 @@
         ],
         "rueducommerce": [
           "Électroménager"
+        ],
+        "conforama-pt": [
+          "Eletrodomésticos"
         ]
       }
     },
@@ -1349,6 +1469,10 @@
         ],
         "mauser": [
           "Ferramentas"
+        ],
+        "castorama": [
+          "Tondeuses et outils motorisés",
+          "Jardin et terrasse (populares e mais vendidos)"
         ]
       }
     }

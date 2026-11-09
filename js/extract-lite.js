@@ -420,6 +420,69 @@ const LiteX = (() => {
     });
   }
 
+  /* ---------- identidade do produto (igual em todas as lojas) ---------- */
+
+  const BRANDS = ['aoc', 'philips', 'lg', 'samsung', 'acer', 'asus', 'lenovo', 'hp', 'dell', 'msi', 'gigabyte', 'benq', 'xiaomi', 'huawei',
+    'garmin', 'sony', 'bosch', 'siemens', 'beko', 'teka', 'balay', 'aeg', 'whirlpool', 'indesit', 'candy', 'hisense', 'tcl', 'panasonic',
+    'sharp', 'apple', 'logitech', 'razer', 'corsair', 'kingston', 'crucial', 'wd', 'western digital', 'seagate', 'sandisk', 'noctua', 'arctic',
+    'cooler master', 'nzxt', 'be quiet', 'thermaltake', 'intel', 'amd', 'zotac', 'sapphire', 'powercolor', 'asrock', 'tp-link', 'netgear',
+    'epson', 'canon', 'brother', 'jbl', 'bose', 'sennheiser', 'marshall', 'dyson', 'rowenta', 'krups', 'delonghi', 'braun',
+    'tefal', 'moulinex', 'smeg', 'electrolux', 'haier', 'gorenje', 'miele', 'cecotec', 'roborock', 'ecovacs', 'irobot', 'dreame', 'makita',
+    'dewalt', 'einhell', 'stanley', 'hyperx', 'steelseries', 'gamemax', 'mars gaming', 'nox', 'tempest', 'deepcool', 'lian li', 'fractal',
+    'patriot', 'g.skill', 'adata', 'lexar', 'pny', 'evga', 'nintendo', 'microsoft', 'oppo', 'realme', 'motorola', 'nokia', 'honor', 'oneplus',
+    'karcher', 'hoover', 'russell hobbs', 'princess', 'orbegozo', 'taurus', 'ufesa', 'fujitsu', 'daikin', 'mitsubishi', 'toshiba',
+    'meross', 'reolink', 'ezviz', 'tapo', 'anker', 'ugreen', 'belkin', 'trust', 'genesis', 'krom', 'ozone', 'thrustmaster', 'playmobil'];
+  const UNIT = /^\d+(?:[.,]\d+)?(?:gb|tb|mb|hz|khz|mhz|ghz|gbps|mbps|fps|w|kw|mah|wh|mm|cm|m|ms|k|p|l|kg|g|v|a|in|pol|rpm|dpi|nits?|bit|mp|x)$/i;
+  const NOT_MODEL = /^(?:ddr|lpddr|usb|hdmi|pcie|wifi|wi-fi|rtx|gtx|rx|gen|ps|ip|bt|cat|ax|ac|qi|m\.2|nvme|sata|fhd|uhd|qhd|wqhd|hdr|oled|ips|va|led|lcd)\d/i;
+
+  function brandOf(it) {
+    const b = String(it.brand || '').toLowerCase().trim();
+    if (b) return b.replace(/[^a-z0-9]+/g, '');
+    const name = ' ' + String(it.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9.'+\s-]/g, ' ') + ' ';
+    const hit = BRANDS.find((x) => name.includes(' ' + x + ' '));
+    return hit ? hit.replace(/[^a-z0-9]+/g, '') : '';
+  }
+
+  /** codigo de modelo no nome: letras + algarismos ("27B36X", "27E2N1500L/00", "KB242YP0BI", "L24-4C") */
+  function modelCode(name) {
+    let best = '';
+    for (let tok of String(name || '').toUpperCase().split(/[\s,;()|]+/)) {
+      tok = tok.replace(/^[^A-Z0-9]+|[^A-Z0-9]+$/g, '');
+      if (tok.includes('/')) { const first = tok.split('/')[0]; if (first.length >= 5) tok = first; }
+      if (!/^[A-Z0-9][A-Z0-9.-]{3,19}$/.test(tok)) continue;
+      const digits = (tok.match(/\d/g) || []).length, letters = (tok.match(/[A-Z]/g) || []).length;
+      if (digits < 2 || letters < 1 || UNIT.test(tok) || NOT_MODEL.test(tok)) continue;
+      const clean = tok.replace(/[.-]/g, '');
+      if (clean.length < 4) continue;
+      if (clean.length > best.length) best = clean;
+    }
+    return best;
+  }
+
+  /** identidade do produto independente da loja (para comparar lojas) */
+  function productIdentity(it) {
+    if (!it) return null;
+    const ean = String(it.ean || '').replace(/\D/g, '');
+    if ([8, 12, 13, 14].includes(ean.length)) return 'ean:' + ean.replace(/^0+(?=\d{12,})/, '');
+    const text = `${it.brand || ''} ${it.name || ''}`;
+    if (/\blego\b/i.test(text)) {
+      const m = text.match(/\((\d{4,6})\)/) || text.match(/\b(\d{5})\b/) || text.match(/(?:ref\.?|set|n\.?\u00ba?)\s*(\d{4,6})\b/i);
+      if (m) return 'lego:' + m[1];
+    }
+    // loja oficial LEGO: o numero do set esta no fim do endereco (/product/megatron-robot-vehicle-40924)
+    const u = String(it.url || '');
+    if (/(^|\.)lego\.com\//i.test(u.replace(/^https?:\/\//, '')) || /\blego\b/i.test(text)) {
+      const m = u.match(/-(\d{4,6})(?:[/?#]|$)/);
+      if (m) return 'lego:' + m[1];
+    }
+    const mpn = String(it.mpn || '').trim();
+    if (mpn.length >= 4 && it.brand) return `mpn:${it.brand.toLowerCase()}:${mpn.toLowerCase()}`;
+    // marca conhecida + codigo de modelo no nome: "MONITOR LED AOC 27B36X" = "Monitor AOC 27B36X 27'' FHD"
+    const brand = brandOf(it), code = modelCode(it.name);
+    if (brand && code) return `model:${brand}:${code.toLowerCase()}`;
+    return null;
+  }
+
   /* ---------- filtros (iguais aos da app) ---------- */
 
   /** padrao de uma palavra-chave: singular e plural contam ("monitores" encontra "monitor" e vice-versa) */
@@ -462,6 +525,7 @@ const LiteX = (() => {
     mainMicrodata, parseSitemap, rankSitemaps, robotsSitemaps,
     isPrestaShopJson, prestaShopItems, lidlApiUrl, lidlItems,
     keywordRegexes, keywordSource, matchesFilters,
+    productIdentity, modelCode, brandOf,
   };
 })();
 

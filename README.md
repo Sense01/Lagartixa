@@ -6,14 +6,18 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
 ## Funcionalidades
 
 **Lojas (📚)**
-- **Diretório de lojas testadas** (`data/sites.json`): 61 lojas PT/FR com estado verificado (✅ funciona / ⚠️ parcial / ⛔ bloqueia),
+- **Diretório de lojas testadas** (`data/sites.json`): 68 lojas PT/FR com estado verificado (✅ funciona / ⚠️ parcial / ⛔ bloqueia),
   categoria, método de leitura, notas sobre o `robots.txt` e endereços de partida prontos — carrega em **Usar** (ou **＋** para juntar várias lojas).
 - **Verificador de compatibilidade**: cola o endereço de qualquer loja e a app testa, através do teu Worker, o `robots.txt`,
   bloqueios/captchas, páginas só com JavaScript, o método de leitura e quantos produtos com preço encontra. As lojas testadas ficam
   no teu diretório pessoal. **🔍 Testar agora** volta a confirmar qualquer loja da lista.
 
 **Pesquisar**
-- Um ou vários sites, palavras-chave, preço mínimo/máximo e desconto mínimo.
+- **Pesquisar por categoria**: LEGO e brinquedos, componentes de PC, portáteis e monitores, eletrodomésticos e TV, jogos de
+  tabuleiro, livros, bricolage — todas as lojas dessa categoria de uma vez (só Portugal, só França ou ambos). Cada loja recebe
+  a sua parte das páginas e a fila alterna entre lojas.
+- Um ou vários sites, palavras-chave (singular e plural contam como iguais), preço mínimo/máximo e desconto mínimo.
+- **Sitemap da loja** (opcional): encontra produtos que as listas não mostram (ex.: Rádio Popular, que só mostra 12 por categoria).
 - **Pesquisas guardadas** (💾): repete uma pesquisa com um toque; ativa 🔔 para alertas automáticos.
 - **Ficar dentro da secção**: ao começar em `/componentes/` só segue links dessa secção.
 - Lê produtos de: **Lidl** (API de pesquisa), lojas **PrestaShop** (JSON), **JSON-LD** (schema.org)
@@ -23,17 +27,28 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
 **Produtos**
 - Cartões com foto, preço, preço antigo, desconto, **stock** (esgotado / por encomenda) e captura da página.
 - **Histórico de preços** guardado no aparelho: "↓ 2,08 € (-19%) desde 06/11", mini-gráfico e 🏆 mínimo histórico.
-- **Comparação entre lojas**: o mesmo produto (nº do set LEGO, EAN ou referência) noutras lojas — onde é mais barato.
-- Ordenar por **melhores negócios**, maior desconto, maior descida, preço; filtros
-  **só bons negócios**, **esconder esgotados**, **só preços que desceram**.
-- **💡 É bom negócio?** — IA com pesquisa web (Groq/xAI/Anthropic) dá veredicto, preço típico, mais baixo e PVP;
-  usa também o teu histórico e os preços vistos noutras lojas.
+- **Comparação entre lojas**: o mesmo produto noutras lojas — pelo EAN, nº do set LEGO (também no endereço da LEGO.com),
+  referência, ou **marca + código de modelo no nome** ("MONITOR LED AOC 27B36X" = "Monitor AOC 27B36X 27'' FHD").
+- **📊 Melhores negócios = abaixo da média**: cada produto é comparado com a melhor referência disponível — média das outras
+  lojas, preço típico da IA, o teu histórico, o preço antigo da loja ou (só como estimativa) produtos parecidos do mesmo tamanho.
+- **⚠️ Promoções duvidosas**: com o histórico, avisa quando o "preço antigo" nunca foi praticado ou quando o preço subiu
+  antes da "promoção" — nesses casos o preço antigo da loja deixa de contar.
+- Filtros **só abaixo da média**, **esconder esgotados**, **só preços que desceram**; falsos produtos (filtros, campanhas,
+  links para categorias) e preços antigos impossíveis são descartados.
+- **💡 É bom negócio?** — IA com pesquisa web (Groq/xAI/Anthropic) dá veredicto, preço típico, mais baixo e PVP; por omissão
+  só ao tocar no botão (há um modo automático). Uma avaliação por modelo: as variantes de cor herdam o resultado. Quando a
+  Groq atinge o limite por minuto, a app espera ("a IA está em cooldown") e continua.
+- **📈 Simulador de revenda**: lucro líquido por produto (comissões, portes, embalagem, IVA, devoluções) e simulação de
+  vários meses com o capital reinvestido.
 - 📸 cartão PNG do produto (no iPhone abre a folha de partilha para guardar nas Fotografias).
 
 **Seguir e alertas**
 - **☆ Seguir** produtos, com **preço-alvo** ("avisar abaixo de X €") e botão para atualizar preços.
 - **Alertas automáticos**: o Worker verifica de hora a hora e envia **notificações push** (descida,
-  preço-alvo, regresso ao stock, produto novo) — mesmo com a app fechada.
+  preço-alvo, regresso ao stock, produto novo) — mesmo com a app fechada. Opcional: **avisar só quando o produto está
+  X% abaixo da média** (das outras lojas, do histórico ou do preço antigo).
+- **Histórico automático**: o Worker guarda o preço de todos os produtos das pesquisas com 🔔 (até 1500 produtos,
+  60 dias) e a app junta-o ao histórico do aparelho — as comparações e a deteção de promoções falsas melhoram sozinhas.
 
 **Outros**: modo escuro/claro com fundo de seda animado, exportação JSON/CSV, ícone e modo app no iPhone.
 

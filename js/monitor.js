@@ -29,6 +29,7 @@ const Monitor = (() => {
     return {
       watch: Store.watchList().map((w) => ({ key: w.key, url: w.url, name: w.name, image: w.image, store: w.store, target: w.target, price: w.price })),
       searches: Store.searches().filter((s) => s.monitor).map((s) => ({ id: s.id, name: s.name, config: s.config })),
+      alertMinBelow: Math.max(0, Math.min(90, +($('monBelow')?.value || 0))),
     };
   }
 
@@ -45,7 +46,27 @@ const Monitor = (() => {
 
   async function refresh() {
     if (!workerBase()) return render(null, new Error('Configura "O meu proxy" (o teu Worker) para usar alertas automáticos'));
-    try { render(await call('/state')); } catch (e) { render(null, e); }
+    try {
+      const st = await call('/state');
+      if (st.alertMinBelow != null && $('monBelow') && document.activeElement !== $('monBelow')) $('monBelow').value = st.alertMinBelow;
+      render(st);
+    } catch (e) { render(null, e); }
+    pullHistory();
+  }
+
+  /** junta ao historico local os precos que o Worker guardou de hora a hora (pesquisas com 🔔 e produtos seguidos) */
+  const K_PULL = (window.STORE_PREFIX || '') + 'crawler-histpull';
+  async function pullHistory() {
+    if (!workerBase()) return 0;
+    let since = '';
+    try { since = localStorage.getItem(K_PULL) || ''; } catch {}
+    try {
+      const data = await call('/history' + (since ? `?since=${since}` : ''));
+      const n = Store.importHistory(data.items || {});
+      try { localStorage.setItem(K_PULL, today()); } catch {}
+      if (n) { Value._v++; if (typeof renderItems === 'function' && items.length) renderItems(); }
+      return n;
+    } catch { return 0; }   // Worker antigo (sem /history): ignora
   }
 
   function urlB64ToUint8(b64) {
@@ -134,5 +155,7 @@ const Monitor = (() => {
   $('monRun').addEventListener('click', runNow);
   $('monitorPanel').addEventListener('toggle', (e) => { if (e.target.open) refresh(); }, true);
 
-  return { sync, scheduleSync, refresh, render };
+  if ($('monBelow')) $('monBelow').addEventListener('change', () => scheduleSync());
+
+  return { sync, scheduleSync, refresh, render, pullHistory };
 })();

@@ -893,3 +893,7 @@ button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: 
 @media (max-width: 640px) { .col-chip { padding: 0.45rem 0.75rem; font-size: 0.82rem; } .col-head select { width: 100%; } }
 .col-info { color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
 .col-info:empty { display: none; }
+
+.mon-below { display: block; font-size: 0.85rem; line-height: 1.9; margin: 0.6rem 0; color: var(--text); }
+.mon-below .rs-in { display: inline-block; width: 5.5rem; vertical-align: middle; }
+.mon-below small { display: block; color: var(--muted); font-size: 0.75rem; line-height: 1.4; }

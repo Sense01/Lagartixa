@@ -42,7 +42,9 @@ const Value = (() => {
   function analyze(list, deps = {}) {
     const identity = deps.identity || ((it) => Store.productIdentity(it));
     const others = deps.otherStores || ((it) => Store.otherStores(it));
-    const hist = deps.history || ((it) => (Store.getHistory(it)?.pts || []).map((p) => p[1]));
+    // historico: [[dia, preco], ...] (os testes antigos passam so precos)
+    const histPts = deps.historyPts || ((it) => Store.getHistory(it)?.pts || []);
+    const hist = deps.history || ((it) => histPts(it).map((p) => p[1]));
     const dealOf = deps.deal || ((it) => (it.deal && !it.deal.error && !it.deal.loading ? it.deal : null));
     const priced = list.filter((it) => it.price > 0);
 
@@ -85,8 +87,10 @@ const Value = (() => {
       const h = (hist(it) || []).filter((x) => x > 0);
       const past = h.length > 1 ? h.slice(0, -1) : [];
       if (past.length >= 2) cands.push({ basis: 'historico', ref: mean(past), n: past.length });
-      // 4. PVPR / preco antigo da propria loja
-      if (it.oldPrice > it.price) cands.push({ basis: 'pvpr', ref: it.oldPrice, n: 1 });
+      // promocao falsa? (o preco antigo nunca foi praticado, ou o preco subiu antes de "baixar")
+      const promo = promoCheck(it, deps.history ? [] : histPts(it));
+      // 4. PVPR / preco antigo da propria loja (ignorado se o historico mostra que e falso)
+      if (it.oldPrice > it.price && !promo) cands.push({ basis: 'pvpr', ref: it.oldPrice, n: 1 });
 
       // 5. semelhantes (o mesmo tipo nao e o mesmo produto: referencia mais fraca) (pelo menos 4 do mesmo tipo, sem contar este)
       const k = typeKey(it.name), sz = sizeKey(it.name);
@@ -96,7 +100,7 @@ const Value = (() => {
         cands.push({ basis: 'semelhantes', ref: median(rest), n: rest.length });
       }
       const best = cands[0];   // ja estao por ordem de confianca
-      if (!best || !(best.ref > 0)) { out.set(it, null); continue; }
+      if (!best || !(best.ref > 0)) { out.set(it, promo ? { promo, pct: 0, score: -1e8, good: false, weak: true, label: '', basis: 'none', ref: null } : null); continue; }
       const pct = Math.round((best.ref - it.price) / best.ref * 100);
       const B = BASIS[best.basis];
       const aiGood = d && /^bom/i.test(String(d.verdict || ''));
@@ -104,11 +108,36 @@ const Value = (() => {
         ref: Math.round(best.ref * 100) / 100, pct, basis: best.basis, n: best.n,
         label: B.label(best.n),
         score: pct * B.w,
-        good: aiGood || (!B.weak && pct >= B.min),
+        good: !promo && (aiGood || (!B.weak && pct >= B.min)),
         weak: !!B.weak,
+        promo,
       });
     }
     return out;
+  }
+
+  /**
+   * deteta promocoes duvidosas com o historico (pelo menos 3 dias anteriores ao longo de 14+ dias):
+   *  - 'never':  o "preco antigo" anunciado nunca apareceu (o maximo visto e bem mais baixo)
+   *  - 'pumped': o preco subiu nas ultimas semanas e a "promocao" so o devolve ao valor normal
+   */
+  function promoCheck(it, pts) {
+    if (!(it.price > 0) || !pts || pts.length < 2) return null;
+    const day = (d) => Date.parse(d + 'T00:00:00Z');
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const past = pts.filter((p) => p[0] !== todayStr && p[1] > 0);
+    if (past.length < 3 || (day(past[past.length - 1][0]) - day(past[0][0])) / 864e5 < 14) return null;
+    const prices = past.map((p) => p[1]);
+    const max = Math.max(...prices);
+    if (it.oldPrice > it.price && max < it.oldPrice * 0.95) return { kind: 'never', claimed: it.oldPrice, max };
+    const cut = day(todayStr) - 30 * 864e5;
+    const older = past.filter((p) => day(p[0]) < cut).map((p) => p[1]);
+    const recent = past.filter((p) => day(p[0]) >= cut).map((p) => p[1]);
+    if (older.length >= 2 && recent.length) {
+      const normal = median(older), peak = Math.max(...recent);
+      if (peak > normal * 1.08 && it.price >= normal * 0.97 && (it.oldPrice > it.price || it.price < peak)) return { kind: 'pumped', normal, peak };
+    }
+    return null;
   }
 
   // cache: recalculada quando muda a lista de produtos ou chega uma avaliacao da IA
@@ -120,9 +149,17 @@ const Value = (() => {
   }
 
   function html(it) {
+    const pv = info(it)?.promo;
+    const promoLine = pv ? `<div class="value v-down v-promo" title="Com base no histórico de preços desta loja">⚠️ <b>Promoção duvidosa</b> <small>${pv.kind === 'never'
+      ? `o preço antigo (${fmtPrice(pv.claimed)}) nunca apareceu no histórico — máximo visto ${fmtPrice(pv.max)}`
+      : `o preço subiu para ${fmtPrice(pv.peak)} nas últimas semanas; o normal era ~${fmtPrice(pv.normal)}`}</small></div>` : '';
+    return promoLine + valueLine(it);
+  }
+
+  function valueLine(it) {
     if (it.deal?.loading) return `<div class="value v-flat">📊 <b>${it.deal.cooldown ? 'A IA está em cooldown…' : 'a comparar preços na web…'}</b></div>`;
     const v = info(it);
-    if (!v) return '';
+    if (!v || v.basis === 'none') return '';
     const cls = v.weak ? 'v-flat v-weak' : v.pct >= BASIS[v.basis].min ? 'v-up' : v.pct <= -5 ? 'v-down' : 'v-flat';
     const txt = v.pct > 0 ? `${v.pct}% abaixo` : v.pct < 0 ? `${-v.pct}% acima` : 'igual';
     return `<div class="value ${cls}" title="Comparado com ${esc(v.label)}">📊 <b>${txt}</b> <small>${esc(v.label)}: ${fmtPrice(v.ref)}</small></div>`;
@@ -164,5 +201,5 @@ const Value = (() => {
       .slice(0, max);
   }
 
-  return { analyze, info, html, typeKey, sizeKey, modelKey, variantsOf, needsAi, BASIS, _v: 0 };
+  return { analyze, info, html, typeKey, sizeKey, modelKey, variantsOf, needsAi, promoCheck, BASIS, _v: 0 };
 })();

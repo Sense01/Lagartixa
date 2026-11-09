@@ -51,26 +51,8 @@ const Store = (() => {
     } catch { return String(raw || '').toLowerCase(); }
   }
 
-  /** identidade do produto independente da loja (para comparar lojas) */
-  function productIdentity(it) {
-    if (!it) return null;
-    const ean = String(it.ean || '').replace(/\D/g, '');
-    if ([8, 12, 13, 14].includes(ean.length)) return 'ean:' + ean.replace(/^0+(?=\d{12,})/, '');
-    const text = `${it.brand || ''} ${it.name || ''}`;
-    if (/\blego\b/i.test(text)) {
-      const m = text.match(/\((\d{4,6})\)/) || text.match(/\b(\d{5})\b/) || text.match(/(?:ref\.?|set|n\.?º?)\s*(\d{4,6})\b/i);
-      if (m) return 'lego:' + m[1];
-    }
-    // loja oficial LEGO: o numero do set esta no fim do endereco (/product/megatron-robot-vehicle-40924)
-    const u = String(it.url || '');
-    if (/(^|\.)lego\.com\//i.test(u.replace(/^https?:\/\//, '')) || /\blego\b/i.test(text)) {
-      const m = u.match(/-(\d{4,6})(?:[/?#]|$)/);
-      if (m) return 'lego:' + m[1];
-    }
-    const mpn = String(it.mpn || '').trim();
-    if (mpn.length >= 4 && it.brand) return `mpn:${it.brand.toLowerCase()}:${mpn.toLowerCase()}`;
-    return null;
-  }
+  /** identidade do produto independente da loja (para comparar lojas) — partilhada com o Worker (js/extract-lite.js) */
+  const productIdentity = (it) => LiteX.productIdentity(it);
 
   /* ---------- histórico de preços ---------- */
 
@@ -104,6 +86,7 @@ const Store = (() => {
       n: it.name, u: it.url, i: it.image || e.i || '', s: hostOf(it.url),
       id: productIdentity(it) || e.id || null, av: it.availability || null, seen: Date.now(),
     });
+    if (it.oldPrice > it.price) e.o = it.oldPrice; else delete e.o;      // preço antigo anunciado (deteção de promoções falsas)
     h[key] = e;
     saveHistory();
     if (Object.keys(h).length > MAX_PRODUCTS * 1.1) pruneHistory();
@@ -122,6 +105,26 @@ const Store = (() => {
       min, max, points: before.length + 1,
       isLowest: before.length >= 2 && price <= Math.min(...before.map((p) => p[1])),
     };
+  }
+
+  /** junta pontos vindos do Worker: { chave: { n, u, s, id, o, h: [[dia, preço], …] } }; devolve quantos pontos novos */
+  function importHistory(map) {
+    const h = history();
+    let added = 0;
+    for (const [rawKey, x] of Object.entries(map || {})) {
+      if (!x || !Array.isArray(x.h) || !x.u) continue;
+      const key = itemKey(x.u) || rawKey;
+      const e = h[key] || { pts: [], n: x.n, u: x.u, s: x.s || hostOf(x.u), id: x.id || null };
+      const byDay = new Map(e.pts.map((p) => [p[0], p[1]]));
+      for (const [d, p] of x.h) if (!byDay.has(d) && p > 0) { byDay.set(d, p); added++; }
+      e.pts = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-MAX_POINTS);
+      e.id = e.id || x.id || null;
+      if (x.o) e.o = x.o;
+      e.seen = Math.max(e.seen || 0, Date.now() - 1);
+      h[key] = e;
+    }
+    if (added) { write(K.history, h); }
+    return added;
   }
 
   function getHistory(urlOrItem) { return history()[itemKey(urlOrItem)] || null; }
@@ -221,7 +224,7 @@ const Store = (() => {
 
   return {
     on, itemKey, productIdentity, _reset,
-    recordPrice, getHistory, historyStats, otherStores, history,
+    recordPrice, getHistory, historyStats, otherStores, history, importHistory,
     watchList, isWatched, toggleWatch, updateWatch, removeWatch,
     searches, saveSearch, updateSearch, removeSearch,
     getDeal, setDeal,

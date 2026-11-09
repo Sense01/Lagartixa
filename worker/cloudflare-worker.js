@@ -439,6 +439,69 @@ const LiteX = (() => {
     });
   }
 
+  /* ---------- identidade do produto (igual em todas as lojas) ---------- */
+
+  const BRANDS = ['aoc', 'philips', 'lg', 'samsung', 'acer', 'asus', 'lenovo', 'hp', 'dell', 'msi', 'gigabyte', 'benq', 'xiaomi', 'huawei',
+    'garmin', 'sony', 'bosch', 'siemens', 'beko', 'teka', 'balay', 'aeg', 'whirlpool', 'indesit', 'candy', 'hisense', 'tcl', 'panasonic',
+    'sharp', 'apple', 'logitech', 'razer', 'corsair', 'kingston', 'crucial', 'wd', 'western digital', 'seagate', 'sandisk', 'noctua', 'arctic',
+    'cooler master', 'nzxt', 'be quiet', 'thermaltake', 'intel', 'amd', 'zotac', 'sapphire', 'powercolor', 'asrock', 'tp-link', 'netgear',
+    'epson', 'canon', 'brother', 'jbl', 'bose', 'sennheiser', 'marshall', 'dyson', 'rowenta', 'krups', 'delonghi', 'braun',
+    'tefal', 'moulinex', 'smeg', 'electrolux', 'haier', 'gorenje', 'miele', 'cecotec', 'roborock', 'ecovacs', 'irobot', 'dreame', 'makita',
+    'dewalt', 'einhell', 'stanley', 'hyperx', 'steelseries', 'gamemax', 'mars gaming', 'nox', 'tempest', 'deepcool', 'lian li', 'fractal',
+    'patriot', 'g.skill', 'adata', 'lexar', 'pny', 'evga', 'nintendo', 'microsoft', 'oppo', 'realme', 'motorola', 'nokia', 'honor', 'oneplus',
+    'karcher', 'hoover', 'russell hobbs', 'princess', 'orbegozo', 'taurus', 'ufesa', 'fujitsu', 'daikin', 'mitsubishi', 'toshiba',
+    'meross', 'reolink', 'ezviz', 'tapo', 'anker', 'ugreen', 'belkin', 'trust', 'genesis', 'krom', 'ozone', 'thrustmaster', 'playmobil'];
+  const UNIT = /^\d+(?:[.,]\d+)?(?:gb|tb|mb|hz|khz|mhz|ghz|gbps|mbps|fps|w|kw|mah|wh|mm|cm|m|ms|k|p|l|kg|g|v|a|in|pol|rpm|dpi|nits?|bit|mp|x)$/i;
+  const NOT_MODEL = /^(?:ddr|lpddr|usb|hdmi|pcie|wifi|wi-fi|rtx|gtx|rx|gen|ps|ip|bt|cat|ax|ac|qi|m\.2|nvme|sata|fhd|uhd|qhd|wqhd|hdr|oled|ips|va|led|lcd)\d/i;
+
+  function brandOf(it) {
+    const b = String(it.brand || '').toLowerCase().trim();
+    if (b) return b.replace(/[^a-z0-9]+/g, '');
+    const name = ' ' + String(it.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9.'+\s-]/g, ' ') + ' ';
+    const hit = BRANDS.find((x) => name.includes(' ' + x + ' '));
+    return hit ? hit.replace(/[^a-z0-9]+/g, '') : '';
+  }
+
+  /** codigo de modelo no nome: letras + algarismos ("27B36X", "27E2N1500L/00", "KB242YP0BI", "L24-4C") */
+  function modelCode(name) {
+    let best = '';
+    for (let tok of String(name || '').toUpperCase().split(/[\s,;()|]+/)) {
+      tok = tok.replace(/^[^A-Z0-9]+|[^A-Z0-9]+$/g, '');
+      if (tok.includes('/')) { const first = tok.split('/')[0]; if (first.length >= 5) tok = first; }
+      if (!/^[A-Z0-9][A-Z0-9.-]{3,19}$/.test(tok)) continue;
+      const digits = (tok.match(/\d/g) || []).length, letters = (tok.match(/[A-Z]/g) || []).length;
+      if (digits < 2 || letters < 1 || UNIT.test(tok) || NOT_MODEL.test(tok)) continue;
+      const clean = tok.replace(/[.-]/g, '');
+      if (clean.length < 4) continue;
+      if (clean.length > best.length) best = clean;
+    }
+    return best;
+  }
+
+  /** identidade do produto independente da loja (para comparar lojas) */
+  function productIdentity(it) {
+    if (!it) return null;
+    const ean = String(it.ean || '').replace(/\D/g, '');
+    if ([8, 12, 13, 14].includes(ean.length)) return 'ean:' + ean.replace(/^0+(?=\d{12,})/, '');
+    const text = `${it.brand || ''} ${it.name || ''}`;
+    if (/\blego\b/i.test(text)) {
+      const m = text.match(/\((\d{4,6})\)/) || text.match(/\b(\d{5})\b/) || text.match(/(?:ref\.?|set|n\.?\u00ba?)\s*(\d{4,6})\b/i);
+      if (m) return 'lego:' + m[1];
+    }
+    // loja oficial LEGO: o numero do set esta no fim do endereco (/product/megatron-robot-vehicle-40924)
+    const u = String(it.url || '');
+    if (/(^|\.)lego\.com\//i.test(u.replace(/^https?:\/\//, '')) || /\blego\b/i.test(text)) {
+      const m = u.match(/-(\d{4,6})(?:[/?#]|$)/);
+      if (m) return 'lego:' + m[1];
+    }
+    const mpn = String(it.mpn || '').trim();
+    if (mpn.length >= 4 && it.brand) return `mpn:${it.brand.toLowerCase()}:${mpn.toLowerCase()}`;
+    // marca conhecida + codigo de modelo no nome: "MONITOR LED AOC 27B36X" = "Monitor AOC 27B36X 27'' FHD"
+    const brand = brandOf(it), code = modelCode(it.name);
+    if (brand && code) return `model:${brand}:${code.toLowerCase()}`;
+    return null;
+  }
+
   /* ---------- filtros (iguais aos da app) ---------- */
 
   /** padrao de uma palavra-chave: singular e plural contam ("monitores" encontra "monitor" e vice-versa) */
@@ -481,6 +544,7 @@ const LiteX = (() => {
     mainMicrodata, parseSitemap, rankSitemaps, robotsSitemaps,
     isPrestaShopJson, prestaShopItems, lidlApiUrl, lidlItems,
     keywordRegexes, keywordSource, matchesFilters,
+    productIdentity, modelCode, brandOf,
   };
 })();
 
@@ -520,6 +584,8 @@ const MONITOR = {
   seenPerSearch: 600,
   alertsKept: 100,
   historyPoints: 90,
+  histItems: 1500,                    // historico de todos os produtos das pesquisas (para comparar e detetar promocoes falsas)
+  histPoints: 60,
   robotsTtlMs: 24 * 3600e3,
 };
 
@@ -551,6 +617,7 @@ export default {
       '/deal': () => handleDeal(request, env, ctx, cors),
       '/state': () => handleState(env, cors),
       '/sync': () => handleSync(request, env, cors),
+      '/history': () => handleHistory(request, env, cors),
       '/run': () => handleRun(request, env, cors),
       '/push/key': () => handlePushKey(env, cors),
       '/push/subscribe': () => handleSubscribe(request, env, cors),
@@ -619,7 +686,7 @@ async function kvGet(env, key, fallback) {
 }
 const kvPut = (env, key, value, opts) => kv(env).put(key, JSON.stringify(value), opts);
 
-const emptyState = () => ({ watch: [], searches: [], prices: {}, seen: {}, baselined: {}, robots: {}, alerts: [], lastRun: null, cron: false });
+const emptyState = () => ({ watch: [], searches: [], prices: {}, seen: {}, baselined: {}, robots: {}, alerts: [], lastRun: null, cron: false, hist: {}, alertMinBelow: 0 });
 
 async function loadState(env) {
   return { ...emptyState(), ...(await kvGet(env, 'state', {})) };
@@ -631,6 +698,7 @@ async function publicState(env, st) {
   return {
     watch: st.watch.map((w) => ({ key: w.key, name: w.name, target: w.target, last: st.prices[w.key] || null })),
     searches: st.searches.map((s) => ({ id: s.id, name: s.name, tracked: Object.keys(st.seen[s.id] || {}).length })),
+    histItems: Object.keys(st.hist || {}).length, alertMinBelow: st.alertMinBelow || 0,
     alerts: st.alerts.slice(0, 40),
     lastRun: st.lastRun, lastSummary: st.lastSummary || null, cron: !!st.cron,
     subscriptions: subs.length,
@@ -655,6 +723,53 @@ function sanitizeLists(body) {
   return { watch, searches };
 }
 
+/** historico de precos que o Worker juntou (a app junta-o ao seu) */
+async function handleHistory(request, env, cors) {
+  const st = await loadState(env);
+  const since = new URL(request.url).searchParams.get('since') || '';
+  const out = {};
+  for (const [k, e] of Object.entries(st.hist || {})) {
+    const pts = since ? e.h.filter((x) => x[0] >= since) : e.h;
+    if (pts.length) out[k] = { ...e, h: pts };
+  }
+  return json({ items: out, count: Object.keys(out).length, lastRun: st.lastRun }, 200, cors);
+}
+
+/** junta um preco ao historico (um ponto por dia) */
+function histAdd(st, it) {
+  const k = itemKey(it.url);
+  const e = (st.hist[k] ||= { n: it.name, u: it.url, s: hostOf(it.url), id: LiteX.productIdentity(it), h: [] });
+  e.n = it.name || e.n;
+  e.id = LiteX.productIdentity(it) || e.id;
+  if (it.oldPrice) e.o = it.oldPrice;      // preco antigo anunciado (para detetar promocoes falsas)
+  e.h = e.h.filter((x) => x[0] !== today());
+  e.h.push([today(), it.price]);
+  if (e.h.length > MONITOR.histPoints) e.h = e.h.slice(-MONITOR.histPoints);
+  e.t = Date.now();
+}
+
+function histPrune(st) {
+  const keys = Object.keys(st.hist);
+  if (keys.length <= MONITOR.histItems) return;
+  keys.sort((a, b) => (st.hist[a].t || 0) - (st.hist[b].t || 0)).slice(0, keys.length - MONITOR.histItems).forEach((k) => delete st.hist[k]);
+}
+
+/** referencia para "abaixo da media": outras lojas com o mesmo produto, senao o historico deste produto, senao o preco antigo */
+function referenceFor(st, it) {
+  const id = LiteX.productIdentity(it), host = hostOf(it.url);
+  if (id) {
+    const others = Object.values(st.hist).filter((e) => e.id === id && e.s !== host && e.h.length).map((e) => e.h[e.h.length - 1][1]);
+    if (others.length) return { ref: others.reduce((a, b) => a + b, 0) / others.length, label: `media de ${others.length} loja${others.length > 1 ? 's' : ''}` };
+  }
+  const own = st.hist[itemKey(it.url)];
+  const past = own ? own.h.filter((x) => x[0] !== today()).map((x) => x[1]) : [];
+  if (past.length >= 2) return { ref: past.reduce((a, b) => a + b, 0) / past.length, label: `media do historico (${past.length} dias)` };
+  if (it.oldPrice > it.price) return { ref: it.oldPrice, label: 'preco antigo anunciado' };
+  return null;
+}
+
+function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } }
+
 async function handleSync(request, env, cors) {
   if (request.method !== 'POST') throw new HttpError('Use POST', 405);
   const body = await request.json().catch(() => ({}));
@@ -662,6 +777,7 @@ async function handleSync(request, env, cors) {
   const { watch, searches } = sanitizeLists(body);
   st.watch = watch;
   st.searches = searches;
+  if (body.alertMinBelow != null) st.alertMinBelow = Math.max(0, Math.min(90, Number(body.alertMinBelow) || 0));
   // limpa estado de pesquisas/produtos que ja nao existem
   const ids = new Set(searches.map((s) => s.id));
   for (const id of Object.keys(st.seen)) if (!ids.has(id)) { delete st.seen[id]; delete st.baselined[id]; }
@@ -823,10 +939,14 @@ async function runMonitor(env, { reason = 'cron' } = {}) {
     const hist = (prev?.hist || []).filter((h) => h[0] !== today());
     hist.push([today(), p.price]);
     st.prices[w.key] = { p: p.price, t: now, av: p.availability || null, hist: hist.slice(-MONITOR.historyPoints) };
+    st.hist ||= {};
+    histAdd(st, { ...p, name: name, url: w.url });
   }
 
-  // 2) pesquisas com alertas: produtos novos e descidas de preco
+  // 2) pesquisas com alertas: produtos novos e descidas de preco (+ historico de todos os produtos)
+  st.hist ||= {};
   let searched = 0;
+  const runs = [];
   for (const s of st.searches) {
     if (c.budget <= 0) break;
     const sites = String(s.config.sites || '').split(/[\n\s,]+/).map((x) => x.trim()).filter(Boolean)
@@ -834,20 +954,35 @@ async function runMonitor(env, { reason = 'cron' } = {}) {
     const f = filtersOf(s.config);
     const found = [];
     for (const site of sites) found.push(...(await listProducts(site, c)));
-    const matched = found.filter((it) => it.price != null && it.name && LiteX.matchesFilters(it, f));
     if (!found.length) continue;
     searched++;
+    const matched = found.filter((it) => it.price != null && it.name && LiteX.matchesFilters(it, f));
+    for (const it of matched) histAdd(st, it);           // primeiro o historico: as referencias usam todas as lojas
+    runs.push({ s, matched });
+  }
+  histPrune(st);
+  const minBelow = Number(st.alertMinBelow) || 0;
+  for (const { s, matched } of runs) {
     const seen = (st.seen[s.id] ||= {});
     const first = !st.baselined[s.id];
     for (const it of matched) {
       const k = itemKey(it.url) + '|' + it.name.slice(0, 60).toLowerCase();
       const prev = seen[k];
-      if (prev == null && !first) {
-        alerts.push({ kind: 'new', title: `\ud83c\udd95 ${s.name}`, body: `${it.name} - ${fmt(it.price)}${it.discount ? ` (-${it.discount}%)` : ''}`, url: it.url });
-      } else if (prev != null && it.price < prev - 0.004) {
-        alerts.push({ kind: 'drop', title: `\u2193 ${it.name}`, body: `${fmt(prev)} \u2192 ${fmt(it.price)} (${s.name})`, url: it.url });
-      }
+      const isNew = prev == null && !first;
+      const isDrop = prev != null && it.price < prev - 0.004;
       seen[k] = it.price;
+      if (!isNew && !isDrop) continue;
+      // so avisar quando esta X% abaixo da media (se o utilizador pediu)
+      let note = '';
+      if (minBelow > 0) {
+        const r = referenceFor(st, it);
+        if (!r) continue;
+        const pct = Math.round((1 - it.price / r.ref) * 100);
+        if (pct < minBelow) continue;
+        note = ` \u00b7 ${pct}% abaixo da ${r.label}`;
+      }
+      if (isNew) alerts.push({ kind: 'new', title: `\ud83c\udd95 ${s.name}`, body: `${it.name} - ${fmt(it.price)}${it.discount ? ` (-${it.discount}%)` : ''}${note}`, url: it.url });
+      else alerts.push({ kind: 'drop', title: `\u2193 ${it.name}`, body: `${fmt(prev)} \u2192 ${fmt(it.price)} (${s.name})${note}`, url: it.url });
     }
     const keys = Object.keys(seen);
     if (keys.length > MONITOR.seenPerSearch) keys.slice(0, keys.length - MONITOR.seenPerSearch).forEach((k) => delete seen[k]);

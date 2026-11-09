@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=18">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -251,6 +251,9 @@
         e envia uma notificação quando um preço desce, fica abaixo do teu alvo, volta ao stock ou aparece um produto novo —
         mesmo com a app fechada.</p>
       <div id="monStatus"></div>
+      <label class="mon-below">Nas pesquisas com 🔔, avisar só quando o produto está pelo menos
+        <span class="rs-in"><input type="number" id="monBelow" min="0" max="90" step="1" value="0"><i>%</i></span>
+        abaixo da média <small>(das outras lojas com o mesmo produto, do histórico ou do preço antigo · 0 = avisar todos os produtos novos e descidas)</small></label>
       <div class="buttons">
         <button type="button" id="monEnable">🔔 Ativar notificações neste aparelho</button>
         <button type="button" id="monTest">Enviar teste</button>
@@ -302,18 +305,18 @@
     </div>
   </div>
 
-  <script src="bg.js?v=16"></script>
-  <script src="js/util.js?v=16"></script>
-  <script src="js/store.js?v=16"></script>
-  <script src="js/extract-lite.js?v=16"></script>
-  <script src="js/crawler.js?v=16"></script>
-  <script src="js/value.js?v=16"></script>
-  <script src="js/deals.js?v=16"></script>
-  <script src="js/resale.js?v=16"></script>
-  <script src="js/items.js?v=16"></script>
-  <script src="js/watch.js?v=16"></script>
-  <script src="js/monitor.js?v=16"></script>
-  <script src="js/sites.js?v=16"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="bg.js?v=18"></script>
+  <script src="js/util.js?v=18"></script>
+  <script src="js/store.js?v=18"></script>
+  <script src="js/extract-lite.js?v=18"></script>
+  <script src="js/crawler.js?v=18"></script>
+  <script src="js/value.js?v=18"></script>
+  <script src="js/deals.js?v=18"></script>
+  <script src="js/resale.js?v=18"></script>
+  <script src="js/items.js?v=18"></script>
+  <script src="js/watch.js?v=18"></script>
+  <script src="js/monitor.js?v=18"></script>
+  <script src="js/sites.js?v=18"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>

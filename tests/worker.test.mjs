@@ -225,6 +225,40 @@ console.log('\nVerificacao automatica (Cron)');
 }
 
 /* ======================================================================== */
+console.log('\nHistorico de todas as pesquisas e alertas abaixo da media');
+{
+  const dev = await makeDevice();
+  const pushes = [];
+  const tile = (id, name, price, old) => `<div class="product"><div class="product-tile"><a href="/p/${id}.html"><img src="/i/${id}.jpg" alt="${name}"></a><div class="pdp-link"><a class="link" href="/p/${id}.html">${name}</a></div><div class="price">${old ? `<span class="strike-through"><span class="value" content="${old}">${old} €</span></span>` : ''}<span class="sales"><span class="value" content="${price}">${price} €</span></span></div></div></div>`;
+  let lojaA = [tile('m1', 'Monitor AOC 27B36X', '120.00'), tile('m0', 'Monitor Philips 27E2N1500L', '130.00')];
+  let lojaB = [tile('x1', 'MONITOR LED AOC 27B36X', '119.00'), tile('x2', 'MONITOR LED PHILIPS 27E2N1500L/00', '128.00')];
+  routes.length = 0;
+  routes.push({ match: (u) => u.endsWith('/robots.txt'), reply: () => new Response('User-agent: *\nAllow: /\n') });
+  routes.push({ match: (u) => u.startsWith('https://loja-a.pt/monitores'), reply: () => new Response(`<div class="grid">${lojaA.join('')}</div>`) });
+  routes.push({ match: (u) => u.startsWith('https://loja-b.pt/monitores'), reply: () => new Response(`<div class="grid">${lojaB.join('')}</div>`) });
+  routes.push({ match: (u) => u.startsWith('https://push.example'), reply: (u, o) => { pushes.push(o); return new Response('', { status: 201 }); } });
+  const kvs = makeKV({ subs: [dev.sub] });
+  const env = { CRAWLER_KV: kvs };
+  await W.fetch(req('/sync', { method: 'POST', body: { watch: [], alertMinBelow: 15, searches: [
+    { id: 'a', name: 'Monitores A', config: { sites: 'https://loja-a.pt/monitores', keywords: 'monitor' } },
+    { id: 'b', name: 'Monitores B', config: { sites: 'https://loja-b.pt/monitores', keywords: 'monitor' } },
+  ] } }), env, waitCtx);
+  await runMonitor(env, { reason: 'cron' });          // primeira vez: so regista
+  let st = JSON.parse(kvs.m.get('state'));
+  const ids = Object.values(st.hist).map((e) => e.id);
+  ok(Object.keys(st.hist).length === 4 && ids.filter((x) => x === 'model:aoc:27b36x').length === 2 && ids.filter((x) => x === 'model:philips:27e2n1500l').length === 2, 'historico guardado para todos os produtos das pesquisas (com o modelo reconhecido nas 2 lojas)', JSON.stringify(ids));
+  // novo produto barato na loja A (o mesmo modelo noutra loja custa 119) e outro sem referencia
+  lojaA = [tile('m1', 'Monitor AOC 27B36X', '120.00'), tile('m0', 'Monitor Philips 27E2N1500L', '130.00'), tile('m2', 'Monitor AOC 27B36X Recondicionado', '79.00'), tile('m3', 'Monitor Generico XPTO', '50.00')];
+  const run = await runMonitor(env, { reason: 'cron' });
+  const bodies = run.alerts.map((a) => a.body);
+  ok(run.alerts.length === 1 && /34% abaixo da media de 1 loja/.test(bodies[0]), 'alerta so para o que esta >= 15% abaixo da media (o sem referencia nao avisa)', JSON.stringify(bodies));
+  const h = await W.fetch(req('/history'), env, waitCtx);
+  const hj = await h.json();
+  ok(h.status === 200 && hj.count === 6 && Object.values(hj.items).every((e) => e.h.length >= 1), '/history devolve o historico para a app', hj.count);
+  ok((await W.fetch(req('/history', { origin: 'https://outro.site' }), env, waitCtx)).status === 403, '/history so responde a tua app');
+}
+
+/* ======================================================================== */
 console.log('\nExtrator leve (partilhado com a app)');
 {
   const html = `<ul class="products"><li class="product-miniature"><a href="/p/1.html"><img src="/a.jpg"></a><h3 class="product-title"><a href="/p/1.html">LEGO Rosas (40460)</a></h3><span class="regular-price">14,99 €</span><span class="price">8,91 €</span><span>Esgotado</span></li><li class="product-miniature"><a href="/p/2.html"><img src="/b.jpg"></a><h3 class="product-title"><a href="/p/2.html">LEGO Orquidea (10343)</a></h3><span class="price">19,50 €</span></li></ul>`;
