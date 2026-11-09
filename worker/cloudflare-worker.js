@@ -1043,7 +1043,8 @@ async function handleDeal(request, env, ctx, cors) {
     'Search the web to judge whether this is a good deal. Find: the typical current price in other ' +
     'shops in this country/EU, the lowest current price you can find, and the official launch/retail ' +
     'price (RRP) if it exists (e.g. for LEGO sets use the set number). Prefer price comparison sites ' +
-    'and official stores. Then answer ONLY with one JSON object, no other text:\n' +
+    'and official stores. When done searching, write your final answer as plain text (do NOT call any ' +
+    'tool named json or any other tool for the answer) containing ONLY one JSON object:\n' +
     '{"verdict":"bom"|"razoavel"|"caro"|"incerto","score":0-100,"typicalPrice":number|null,' +
     '"lowestPrice":number|null,"rrp":number|null,"currency":"EUR","summary":"1-2 short sentences in ' +
     'European Portuguese explaining the verdict with the numbers","sources":[{"title":"...","url":"..."}]}\n' +
@@ -1099,30 +1100,38 @@ async function askGroq(key, prompt) {
   let lastErr;
   for (const model of MODELS.groq) {
     const compound = model.startsWith('groq/');
-    const body = { model, messages: [{ role: 'user', content: prompt }], max_completion_tokens: 2500 };
-    if (!compound) {
-      body.tools = [{ type: 'browser_search' }];
-      body.tool_choice = 'required';
-      body.reasoning_effort = 'low';
+    // os modelos gpt-oss as vezes "inventam" uma ferramenta (ex. 'json') e a Groq rejeita o pedido:
+    // repete o mesmo modelo ate 2 vezes e depois passa ao seguinte
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const body = { model, messages: [{ role: 'user', content: prompt }], max_completion_tokens: 2500 };
+      if (!compound) {
+        body.tools = [{ type: 'browser_search' }];
+        // na repeticao, deixa o modelo escolher: menos tentativas de chamar ferramentas inexistentes
+        body.tool_choice = attempt === 0 ? 'required' : 'auto';
+        body.reasoning_effort = 'low';
+      }
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = data?.error?.message || `HTTP ${res.status}`;
+        lastErr = new Error(`${model}: ${msg}`);
+        if (res.status === 404 || /does not exist|access|not found|decommission|not supported/i.test(msg)) break;
+        const toolGlitch = data?.error?.code === 'tool_use_failed' || /tool call validation|failed to call a function|not in request\.tools|tool_use_failed/i.test(msg);
+        if (toolGlitch && attempt < 2) continue;
+        if (toolGlitch || res.status === 429 || res.status >= 500) break;   // tenta o modelo seguinte
+        throw lastErr;
+      }
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message || {};
+      const tools = msg.executed_tools || [];
+      const text = msg.content || '';
+      const urls = [...new Set((text.match(/https?:\/\/[^\s)\]"'<>]+/g) || []))].map((u) => ({ title: u, url: u }));
+      return { text, sources: [...collectSources(tools), ...urls].slice(0, 6), searches: tools.length || null, model };
     }
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const msg = data?.error?.message || `HTTP ${res.status}`;
-      lastErr = new Error(`${model}: ${msg}`);
-      if (res.status === 404 || /does not exist|access|not found|decommission|not supported/i.test(msg)) continue;
-      throw lastErr;
-    }
-    const data = await res.json();
-    const msg = data.choices?.[0]?.message || {};
-    const tools = msg.executed_tools || [];
-    const text = msg.content || '';
-    const urls = [...new Set((text.match(/https?:\/\/[^\s)\]"'<>]+/g) || []))].map((u) => ({ title: u, url: u }));
-    return { text, sources: [...collectSources(tools), ...urls].slice(0, 6), searches: tools.length || null, model };
   }
   throw lastErr || new Error('Nenhum modelo Groq disponivel');
 }

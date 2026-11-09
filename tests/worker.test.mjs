@@ -138,6 +138,28 @@ console.log('\nAvaliacao de negocio');
   ok(!/【/.test(j.summary), 'marcas de citacao removidas do resumo');
   ok(/Our own price tracking/.test(sentPrompt) && /fnac\.pt 11\.99/.test(sentPrompt), 'historico proprio e outras lojas enviados no pedido');
   ok(kvs.m.get(`deals:${new Date().toISOString().slice(0, 10)}`) === '1', 'contador diario incrementado');
+  // a Groq rejeita o pedido quando o modelo tenta chamar uma ferramenta inexistente ('json'): repetir
+  let groqCalls = 0, choices = [];
+  routes.length = 0;
+  routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
+    groqCalls++; choices.push(JSON.parse(o.body).tool_choice);
+    if (groqCalls === 1) return new Response(JSON.stringify({ error: { message: "tool call validation failed: attempted to call tool 'json' which was not in request.tools", code: 'tool_use_failed' } }), { status: 400 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"razoavel","score":55,"summary":"Preco normal.","sources":[]}' } }] }));
+  } });
+  const rg = await W.fetch(req('/deal', { method: 'POST', body: { ...body, name: 'Snapmaker U1', price: 699 } }), env, waitCtx);
+  const jg = await rg.json();
+  ok(rg.status === 200 && jg.verdict === 'razoavel' && groqCalls === 2 && choices[1] === 'auto', "erro 'tool json' da Groq: repete e responde", JSON.stringify({ s: rg.status, groqCalls, choices }));
+  groqCalls = 0;
+  routes.length = 0;
+  routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
+    groqCalls++;
+    const m = JSON.parse(o.body).model;
+    if (m === 'openai/gpt-oss-120b') return new Response(JSON.stringify({ error: { message: "tool call validation failed: attempted to call tool 'json'", code: 'tool_use_failed' } }), { status: 400 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"bom","score":70,"summary":"Ok.","sources":[]}' } }] }));
+  } });
+  const rh = await W.fetch(req('/deal', { method: 'POST', body: { ...body, name: 'Snapmaker U1 B', price: 698 } }), env, waitCtx);
+  const jh = await rh.json();
+  ok(rh.status === 200 && jh.verdict === 'bom' && groqCalls === 4, 'se o erro persistir, passa ao modelo seguinte', JSON.stringify({ s: rh.status, groqCalls, e: jh.error }));
   kvs.m.set(`deals:${new Date().toISOString().slice(0, 10)}`, '60');
   const r2 = await W.fetch(req('/deal', { method: 'POST', body: { ...body, price: 9.99 } }), env, waitCtx);
   ok(r2.status === 429 && /Limite diario/.test((await r2.json()).error), 'limite diario devolve 429 com mensagem clara');
