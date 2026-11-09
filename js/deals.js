@@ -62,12 +62,16 @@ async function evaluateDeal(it, { force = false } = {}) {
       }),
     });
     const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok || data.error) {
+      const err = new Error(data.error || `HTTP ${res.status}`);
+      if (data.retryAfter) err.retryAfter = +data.retryAfter;   // limite por minuto da IA: vale a pena esperar
+      throw err;
+    }
     it.deal = data;
     Store.setDeal(it, data);
   } catch (e) {
     it.deal = { error: /Failed to fetch|Load failed|NetworkError/.test(e.message)
-      ? 'O Worker não respondeu — confirma que tem a versão nova (com /deal)' : e.message };
+      ? 'O Worker não respondeu — confirma que tem a versão nova (com /deal)' : e.message, retryAfter: e.retryAfter };
   }
   refreshCard(it);
   return it.deal;
@@ -80,8 +84,20 @@ async function autoEvaluateDeals() {
   toast(`📊 A comparar preços de ${top.length} produto(s) na web…`);
   let good = 0, done = 0;
   for (const it of top) {
-    const d = await evaluateDeal(it);
-    if (d?.error) { if (/proxy|Worker|API_KEY|chave|autorizada|limite/i.test(d.error)) { toast(`IA: ${d.error}`, 5000); break; } continue; }
+    let d = await evaluateDeal(it);
+    // limite por minuto do plano gratuito: espera o tempo indicado e tenta de novo (ate 3 vezes)
+    for (let t = 0; t < 3 && d?.retryAfter; t++) {
+      const wait = Math.min(90, d.retryAfter + 2);
+      it.deal = { loading: true }; refreshCard(it);
+      toast(`📊 A IA pediu uma pausa — continuo daqui a ${wait} s (${done}/${top.length})`, 4000);
+      await new Promise((r) => setTimeout(r, wait * 1000));
+      d = await evaluateDeal(it, { force: true });
+    }
+    if (d?.error) {
+      if (d.retryAfter || /proxy|Worker|API_KEY|chave|autorizada|limite diario|Limite diário/i.test(d.error)) { toast(`IA: ${d.error}`, 6000); break; }
+      continue;
+    }
+    await new Promise((r) => setTimeout(r, 1500));   // espacar os pedidos poupa o limite por minuto
     done++;
     if (verdictKey(d?.verdict) === 'bom') good++;
     if ($('itemSort').value === 'deal') renderItems();     // reordena a medida que chegam os precos

@@ -160,6 +160,16 @@ console.log('\nAvaliacao de negocio');
   const rh = await W.fetch(req('/deal', { method: 'POST', body: { ...body, name: 'Snapmaker U1 B', price: 698 } }), env, waitCtx);
   const jh = await rh.json();
   ok(rh.status === 200 && jh.verdict === 'bom' && groqCalls === 4, 'se o erro persistir, passa ao modelo seguinte', JSON.stringify({ s: rh.status, groqCalls, e: jh.error }));
+  // limite por minuto da Groq: o Worker devolve 429 com o tempo de espera (e nao a mensagem do ultimo modelo)
+  routes.length = 0;
+  routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
+    const m = JSON.parse(o.body).model;
+    if (m === 'groq/compound-mini') return new Response(JSON.stringify({ error: { message: 'The model `groq/compound-mini` does not exist or you do not have access to it.' } }), { status: 404 });
+    return new Response(JSON.stringify({ error: { message: 'Rate limit reached for model openai/gpt-oss-120b on tokens per minute (TPM). Please try again in 14.2s.' } }), { status: 429 });
+  } });
+  const rr = await W.fetch(req('/deal', { method: 'POST', body: { ...body, name: 'Produto limite', price: 5 } }), env, waitCtx);
+  const jr = await rr.json();
+  ok(rr.status === 429 && jr.retryAfter === 15 && /Limite de pedidos/.test(jr.error), 'limite por minuto: 429 com "espera 15 s" (nao o erro do ultimo modelo)', JSON.stringify({ s: rr.status, jr }));
   kvs.m.set(`deals:${new Date().toISOString().slice(0, 10)}`, '60');
   const r2 = await W.fetch(req('/deal', { method: 'POST', body: { ...body, price: 9.99 } }), env, waitCtx);
   ok(r2.status === 429 && /Limite diario/.test((await r2.json()).error), 'limite diario devolve 429 com mensagem clara');

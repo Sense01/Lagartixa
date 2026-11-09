@@ -91,7 +91,7 @@ export default {
     if (api) {
       // as rotas da API so respondem a tua app (pedidos sem Origin sao recusados)
       if (ALLOWED_ORIGINS.length && !originOk) return json({ error: 'Origem nao autorizada' }, 403, cors);
-      try { return await api(); } catch (e) { return json({ error: e.message || String(e), setup: e.setup }, e.status || 500, cors); }
+      try { return await api(); } catch (e) { return json({ error: e.message || String(e), setup: e.setup, retryAfter: e.retryAfter }, e.status || 500, cors); }
     }
     if (request.method !== 'GET') return new Response('So GET', { status: 405, headers: cors });
     return proxy(request, cors);
@@ -599,7 +599,9 @@ async function handleDeal(request, env, ctx, cors) {
   try {
     out = await askProvider(provider, prompt, country);
   } catch (e) {
-    throw new HttpError(`${provider.name}: ${e.message}`, 502);
+    const err = new HttpError(`${provider.name}: ${e.message}`, e.retryAfter ? 429 : 502);
+    if (e.retryAfter) err.retryAfter = Math.min(120, Math.ceil(e.retryAfter));
+    throw err;
   }
   const text = out.text || '';
   let result = extractVerdict(text) || { verdict: 'incerto', score: null, summary: cleanText(text).slice(-400) };
@@ -641,7 +643,7 @@ function collectSources(node, out = [], seen = new Set()) {
 }
 
 async function askGroq(key, prompt) {
-  let lastErr;
+  let lastErr, rateErr;
   for (const model of MODELS.groq) {
     const compound = model.startsWith('groq/');
     // os modelos gpt-oss as vezes "inventam" uma ferramenta (ex. 'json') e a Groq rejeita o pedido:
@@ -666,7 +668,13 @@ async function askGroq(key, prompt) {
         if (res.status === 404 || /does not exist|access|not found|decommission|not supported/i.test(msg)) break;
         const toolGlitch = data?.error?.code === 'tool_use_failed' || /tool call validation|failed to call a function|not in request\.tools|tool_use_failed/i.test(msg);
         if (toolGlitch && attempt < 2) continue;
-        if (toolGlitch || res.status === 429 || res.status >= 500) break;   // tenta o modelo seguinte
+        if (res.status === 429 || /rate limit|tokens per minute|requests per minute/i.test(msg)) {
+          // limite por minuto do plano gratuito: guarda a mensagem (diz quanto esperar) e tenta outro modelo
+          rateErr = rateErr || new Error(`Limite de pedidos da Groq por minuto: ${msg}`);
+          rateErr.retryAfter = +(res.headers.get('retry-after') || (msg.match(/try again in ([\d.]+)s/i) || [])[1] || 20);
+          break;
+        }
+        if (toolGlitch || res.status >= 500) break;   // tenta o modelo seguinte
         throw lastErr;
       }
       const data = await res.json();
@@ -677,7 +685,7 @@ async function askGroq(key, prompt) {
       return { text, sources: [...collectSources(tools), ...urls].slice(0, 6), searches: tools.length || null, model };
     }
   }
-  throw lastErr || new Error('Nenhum modelo Groq disponivel');
+  throw rateErr || lastErr || new Error('Nenhum modelo Groq disponivel');
 }
 
 async function askXai(key, prompt) {
