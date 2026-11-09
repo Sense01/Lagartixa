@@ -326,6 +326,7 @@ $('config').addEventListener('submit', async (e) => {
   updateStats(s, state);
   setRunning(false);
   renderItems();
+  Value._v++;
   renderCompare();
   Resale.render();
   renderWatch();

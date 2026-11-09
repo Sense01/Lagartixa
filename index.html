@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -192,7 +192,7 @@
         <button type="button" id="goResale" class="small">📈 Simular revenda</button>
         <select id="itemSort" aria-label="Ordenar">
           <option value="found">Ordem em que foram encontrados</option>
-          <option value="deal">💡 Melhores negócios</option>
+          <option value="deal">📊 Melhores negócios (abaixo da média)</option>
           <option value="discount">Maior desconto</option>
           <option value="drop">↓ Maior descida desde a última vez</option>
           <option value="priceAsc">Preço mais baixo</option>
@@ -200,7 +200,7 @@
         </select>
       </div>
       <div class="filters">
-        <label class="inline"><input type="checkbox" id="onlyGood"> Só bons negócios</label>
+        <label class="inline" title="Abaixo da média das outras lojas, do preço típico (IA), do teu histórico ou de produtos semelhantes"><input type="checkbox" id="onlyGood"> Só abaixo da média</label>
         <label class="inline"><input type="checkbox" id="hideOut"> Esconder esgotados</label>
         <label class="inline"><input type="checkbox" id="onlyDrops"> Só preços que desceram</label>
       </div>
@@ -293,17 +293,18 @@
     </div>
   </div>
 
-  <script src="bg.js?v=7"></script>
-  <script src="js/util.js?v=7"></script>
-  <script src="js/store.js?v=7"></script>
-  <script src="js/extract-lite.js?v=7"></script>
-  <script src="js/crawler.js?v=7"></script>
-  <script src="js/deals.js?v=7"></script>
-  <script src="js/resale.js?v=7"></script>
-  <script src="js/items.js?v=7"></script>
-  <script src="js/watch.js?v=7"></script>
-  <script src="js/monitor.js?v=7"></script>
-  <script src="js/sites.js?v=7"></script>
-  <script src="js/app.js?v=7"></script>
+  <script src="bg.js?v=8"></script>
+  <script src="js/util.js?v=8"></script>
+  <script src="js/store.js?v=8"></script>
+  <script src="js/extract-lite.js?v=8"></script>
+  <script src="js/crawler.js?v=8"></script>
+  <script src="js/value.js?v=8"></script>
+  <script src="js/deals.js?v=8"></script>
+  <script src="js/resale.js?v=8"></script>
+  <script src="js/items.js?v=8"></script>
+  <script src="js/watch.js?v=8"></script>
+  <script src="js/monitor.js?v=8"></script>
+  <script src="js/sites.js?v=8"></script>
+  <script src="js/app.js?v=8"></script>
 </body>
 </html>

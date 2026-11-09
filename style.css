@@ -872,3 +872,9 @@ button.small { padding: 0.45rem 0.8rem; font-size: 0.82rem; }
 .rs-tip b { color: var(--text); }
 button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .sd-rs { margin-left: 0.3rem; }
+
+.value { font-size: 0.8rem; margin: 0.15rem 0 0.35rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.15rem 0.4rem; align-items: baseline; }
+.value b { color: var(--text); }
+.value small { font-size: 0.72rem; }
+.value.v-up b { color: var(--ok); }
+.value.v-down b { color: var(--err); }

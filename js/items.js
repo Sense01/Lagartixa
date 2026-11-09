@@ -89,6 +89,7 @@ function itemCard(it, idx) {
         <span class="price">${fmtPrice(it.price, it.currency) || '—'}</span>
         ${it.oldPrice != null ? `<s>${fmtPrice(it.oldPrice, it.currency)}</s>` : ''}
       </div>
+      ${Value.html(it)}
       ${trendHtml(it)}
       ${othersHtml(it)}
       ${kws.length ? `<div>${kws.map((k) => `<span class="tag">${esc(k)}</span>`).join('')}</div>` : ''}
@@ -117,8 +118,9 @@ function refreshCard(it) {
 }
 
 /* ---------- filtros e ordenação ---------- */
-const dealScore = (it) => (it.deal && !it.deal.error && !it.deal.loading && it.deal.score != null ? +it.deal.score : -1);
-const isGoodDeal = (it) => /^bom/i.test(String(it.deal?.verdict || '')) || dealScore(it) >= 70;
+// "melhor negocio" = quanto abaixo da media/referencia esta (ver js/value.js); sem referencia vai para o fim
+const dealScore = (it) => { const v = Value.info(it); return v ? v.score : -1e9; };
+const isGoodDeal = (it) => !!Value.info(it)?.good;
 
 function visibleItems() {
   const onlyGood = $('onlyGood').checked;

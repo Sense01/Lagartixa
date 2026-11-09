@@ -126,6 +126,28 @@
     ok(Crawler.looksLikeProduct(g) && g.discount === 27, 'produto verdadeiro continua (-27%)');
   }
 
+  group('Melhores negócios = abaixo da média');
+  {
+    const mk = (name, url, price, extra = {}) => ({ name, url, price, ...extra });
+    const lego1 = mk('LEGO Orquídea 10311', 'https://a.pt/l1', 30, { id: 'lego:10311' });
+    const lego2 = mk('LEGO Orquídea 10311', 'https://b.pt/l1', 45, { id: 'lego:10311' });
+    const lego3 = mk('LEGO Orquídea 10311', 'https://c.pt/l1', 47, { id: 'lego:10311' });
+    const mons = [129, 139, 149, 159, 89].map((p, i) => mk(`MONITOR LED Marca${i} X${i}`, `https://d.pt/m${i}`, p));
+    const pv = mk('Cabo HDMI 2m', 'https://e.pt/c', 9, { oldPrice: 20 });
+    const ai = mk('Robot aspirador Z', 'https://f.pt/r', 150, { deal: { typicalPrice: 200, verdict: 'bom' } });
+    const all = [lego1, lego2, lego3, ...mons, pv, ai];
+    const V = Value.analyze(all, { identity: (it) => it.id || '', otherStores: () => [], history: () => [] });
+    const l = V.get(lego1);
+    ok(l.basis === 'lojas' && l.n === 2 && l.ref === 46 && l.pct === 35 && l.good, 'LEGO 30 € vs média de 2 lojas (46 €) → 35% abaixo, bom negócio', l);
+    ok(V.get(lego3).pct < 0 && !V.get(lego3).good, 'a loja mais cara fica acima da média');
+    const m = V.get(mons[4]);
+    ok(m.basis === 'semelhantes' && m.ref === 144 && m.good, 'monitor 89 € vs mediana de 4 monitores semelhantes (144 €)', m);
+    ok(V.get(pv).basis === 'pvpr' && V.get(ai).basis === 'ia' && V.get(ai).pct === 25, 'sem outras lojas: PVPR da loja; com IA: preço típico');
+    const order = all.slice().sort((a, b) => (V.get(b)?.score ?? -1e9) - (V.get(a)?.score ?? -1e9)).map((x) => x.url);
+    ok(order[0] === 'https://a.pt/l1', 'ordenação: o mais abaixo da média (com a referência mais fiável) primeiro', order.slice(0, 3));
+    ok(Value.typeKey('MONITOR LED GAMING AOC') === 'monitor led' && Value.typeKey('SUPORTE MONITOR NAPOFIX') === 'suporte monitor', 'tipo do produto pelas primeiras palavras');
+  }
+
   group('Simulador de revenda');
   {
     const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };
