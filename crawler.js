@@ -360,32 +360,69 @@ class Crawler {
   }
 
   extractHeuristic(doc, pageUrl) {
-    const sel = 'article, li, [itemtype*="Product"], [class*="product" i], [class*="tile" i], [class*="card" i], [class*="item" i]';
+    const sel = 'article, li, [itemtype*="Product"], [class*="product" i], [class*="tile" i], [class*="card" i], [class*="item" i], [data-pid], [data-product-id]';
+    const info = new Map();
     let cands = [...doc.querySelectorAll(sel)].filter((el) => {
       const t = el.textContent;
-      return t.length < 800 && el.querySelector('a[href]') && Crawler.pricesIn(t).length;
+      if (t.length > 5000 || !el.querySelector('a[href]')) return false;
+      const prices = [...new Set(Crawler.pricesIn(t.replace(/\s+/g, ' ')))];
+      // um produto tem 1 a 4 preços (atual, antigo, por unidade…); mais do que isso é uma grelha
+      if (!prices.length || prices.length > 4) return false;
+      info.set(el, prices);
+      return true;
     });
-    // fica com os contentores mais interiores
+    // fica com os contentores mais interiores que ainda têm link + preço
     cands = cands.filter((el) => !cands.some((o) => o !== el && el.contains(o)));
+    // mas se o mais interior não tiver imagem nem título, sobe até ao bloco que os tem
+    cands = cands.map((el) => {
+      let cur = el;
+      for (let i = 0; i < 4 && cur.parentElement; i++) {
+        if (cur.querySelector('img') && cur.querySelector('h2, h3, h4, [class*="name" i], [class*="title" i], a[href]')) break;
+        const up = cur.parentElement;
+        const upPrices = [...new Set(Crawler.pricesIn(up.textContent.replace(/\s+/g, ' ')))];
+        if (upPrices.length > 4 || up.textContent.length > 5000) break;
+        cur = up;
+      }
+      return cur;
+    });
+    cands = [...new Set(cands)];
+
     return cands.slice(0, 300).map((el) => {
       const text = el.textContent.replace(/\s+/g, ' ');
       const prices = [...new Set(Crawler.pricesIn(text))];
-      const ip = el.querySelector('[itemprop="price"]');
-      const price = ip ? ip.getAttribute('content') || ip.textContent : prices.length ? Math.min(...prices) : null;
-      const priceN = Crawler.parsePrice(price);
+      // preço "oficial" em atributos (schema.org, Salesforce Commerce, etc.)
+      const STRUCK = 's, del, strike, [class*="old" i], [class*="strike" i], [class*="regular" i], [class*="was" i], [class*="before" i]';
+      const notInStruck = (n) => n && !n.closest(STRUCK);
+      const attrEl =
+        [...el.querySelectorAll('[itemprop="price"], .sales [content], [class*="price" i] [content], [class*="price" i][content], [data-price]')]
+          .find(notInStruck);
+      const attrPrice = attrEl ? attrEl.getAttribute('content') || attrEl.getAttribute('data-price') : null;
+      const struck = [...el.querySelectorAll(STRUCK)].find((n) => Crawler.pricesIn(n.textContent.replace(/\s+/g, ' ')).length || n.getAttribute('content'));
+      const struckPrice = struck
+        ? Crawler.pricesIn(struck.textContent.replace(/\s+/g, ' '))[0] ??
+          Crawler.parsePrice(struck.querySelector('[content]')?.getAttribute('content') || struck.getAttribute('content'))
+        : null;
+      let priceN = Crawler.parsePrice(attrPrice);
+      if (priceN == null) {
+        const notStruck = prices.filter((p) => p !== struckPrice);
+        priceN = notStruck.length ? Math.min(...notStruck) : prices.length ? Math.min(...prices) : null;
+      }
       const bigger = prices.filter((p) => priceN != null && p > priceN);
+      const oldPrice = struckPrice != null && struckPrice > (priceN ?? 0) ? struckPrice : bigger.length ? Math.max(...bigger) : null;
       const dm = text.match(Crawler.DISCOUNT_RE);
-      const nameEl = el.querySelector('[itemprop="name"], h2, h3, h4, [class*="title" i], [class*="name" i]');
+      const nameEl = el.querySelector('[itemprop="name"], .pdp-link a, [class*="product-name" i], [class*="product-title" i], h2, h3, h4, [class*="title" i], [class*="name" i]');
       const img = el.querySelector('img');
-      const a = el.querySelector('a[href]');
+      const link = el.querySelector('.pdp-link a[href], h2 a[href], h3 a[href], [class*="name" i] a[href], [class*="title" i] a[href]') || el.querySelector('a[href]');
+      const imgSrc = img?.getAttribute('data-src') || img?.getAttribute('data-lazy') ||
+        (img?.getAttribute('srcset') || img?.getAttribute('data-srcset') || '').split(/\s+/)[0] || img?.getAttribute('src') || '';
       return this.makeItem(
         {
-          name: nameEl?.textContent || img?.alt || a?.getAttribute('title') || a?.textContent || '',
+          name: nameEl?.textContent || img?.alt || link?.getAttribute('title') || link?.textContent || '',
           price: priceN,
-          oldPrice: bigger.length ? Math.max(...bigger) : null,
+          oldPrice,
           discount: dm ? dm[1] || dm[2] : null,
-          url: a?.getAttribute('href'),
-          image: img?.getAttribute('data-src') || img?.getAttribute('src') || '',
+          url: link?.getAttribute('href'),
+          image: imgSrc.startsWith('data:') ? '' : imgSrc,
         },
         'html',
         pageUrl
@@ -496,10 +533,14 @@ class Crawler {
 
   /* ---------- robots.txt ---------- */
 
-  async loadRobots(origin) {
-    if (this.robotsRules.has(origin)) return this.robotsRules.get(origin);
+  // guarda a promessa: pedidos em paralelo para o mesmo site esperam pelo mesmo robots.txt
+  loadRobots(origin) {
+    if (!this.robotsRules.has(origin)) this.robotsRules.set(origin, this.fetchRobots(origin));
+    return this.robotsRules.get(origin);
+  }
+
+  async fetchRobots(origin) {
     let rules = [];
-    this.robotsRules.set(origin, rules);
     try {
       const r = await this.fetchText(origin + '/robots.txt', { timeout: 10000, maxTries: 1 });
       if (r.ok && !/<html/i.test(r.text.slice(0, 500))) rules = this.parseRobots(r.text);
@@ -507,7 +548,6 @@ class Crawler {
     } catch {
       this.onLog(`robots.txt de ${origin} indisponível — a continuar sem regras`);
     }
-    this.robotsRules.set(origin, rules);
     return rules;
   }
 
@@ -659,7 +699,9 @@ class Crawler {
         const rules = await this.loadRobots(new URL(url).origin);
         if (!this.robotsAllows(url, rules)) {
           row.status = 'robots';
-          row.error = 'Bloqueado por robots.txt';
+          row.error = depth === 0
+            ? 'Bloqueado por robots.txt — o site não permite crawlers nesta secção (ex.: pesquisa). Usa o link da categoria.'
+            : 'Bloqueado por robots.txt';
           this.push(row);
           return;
         }
