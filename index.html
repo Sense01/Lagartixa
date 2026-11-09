@@ -42,8 +42,36 @@
   </header>
 
   <main>
+    <details class="panel" id="sitesPanel">
+      <summary><h2>📚 Lojas <span class="count" id="sdCount">—</span>
+        <small class="h-sub">diretório de lojas testadas — escolhe uma e carrega em Usar, ou testa uma loja nova</small></h2></summary>
+      <div class="sd-add">
+        <input type="url" id="sdAddUrl" placeholder="Testar outra loja: https://loja.pt/categoria" inputmode="url" autocomplete="off">
+        <button type="button" id="sdAddBtn">🔍 Testar e adicionar</button>
+      </div>
+      <div id="sdAddResult"></div>
+      <div class="sd-filters">
+        <input type="search" id="sdSearch" placeholder="Procurar loja…">
+        <select id="sdCat" aria-label="Categoria"></select>
+        <select id="sdCountry" aria-label="País">
+          <option value="">Todos os países</option><option value="PT">🇵🇹 Portugal</option><option value="FR">🇫🇷 França</option>
+        </select>
+        <select id="sdStatus" aria-label="Estado">
+          <option value="">Todos os estados</option><option value="ok">✅ Funcionam</option>
+          <option value="partial">⚠️ Parcial</option><option value="blocked">⛔ Bloqueiam</option>
+        </select>
+      </div>
+      <div id="sdList" class="sd-list"></div>
+      <p id="sdFoot" class="sd-foot"></p>
+    </details>
+
     <section class="panel">
       <form id="config">
+        <div id="searchesBar" class="searches-bar full hidden">
+          <span class="sb-label">Pesquisas guardadas</span>
+          <div id="savedSearches" class="saved-searches"></div>
+        </div>
+
         <label class="half">
           Sites a analisar <small>(um por linha)</small>
           <textarea id="sites" rows="4" placeholder="https://example.com&#10;outrosite.pt" required></textarea>
@@ -131,6 +159,7 @@
         <div class="buttons full">
           <button type="submit" id="startBtn">▶ Iniciar</button>
           <button type="button" id="stopBtn" disabled>■ Parar</button>
+          <button type="button" id="saveSearch">💾 Guardar pesquisa</button>
           <button type="button" id="exportJson" disabled>⬇ JSON</button>
           <button type="button" id="exportCsv" disabled>⬇ CSV páginas</button>
           <button type="button" id="exportItems" disabled>⬇ CSV produtos</button>
@@ -148,18 +177,54 @@
       <div><span id="statStatus">parado</span><small>estado</small></div>
     </section>
 
+    <section class="panel hidden" id="watchPanel">
+      <div class="toolbar">
+        <h2 class="grow">★ A seguir <span class="count" id="watchCount">0</span></h2>
+        <button type="button" id="watchRefresh">🔄 Atualizar preços</button>
+      </div>
+      <div id="watchList" class="watch-list"></div>
+    </section>
+
     <section class="panel hidden" id="itemsPanel">
       <div class="toolbar">
-        <h2 style="margin:0;flex:1">Produtos encontrados</h2>
+        <h2 class="grow">Produtos encontrados <span class="count" id="itemsCount">0</span></h2>
         <select id="itemSort" aria-label="Ordenar">
           <option value="found">Ordem em que foram encontrados</option>
+          <option value="deal">💡 Melhores negócios</option>
           <option value="discount">Maior desconto</option>
+          <option value="drop">↓ Maior descida desde a última vez</option>
           <option value="priceAsc">Preço mais baixo</option>
           <option value="priceDesc">Preço mais alto</option>
         </select>
       </div>
+      <div class="filters">
+        <label class="inline"><input type="checkbox" id="onlyGood"> Só bons negócios</label>
+        <label class="inline"><input type="checkbox" id="hideOut"> Esconder esgotados</label>
+        <label class="inline"><input type="checkbox" id="onlyDrops"> Só preços que desceram</label>
+      </div>
       <div id="items" class="items"></div>
+      <p id="itemsEmpty" class="empty hidden">Nenhum produto corresponde aos filtros escolhidos.</p>
     </section>
+
+    <section class="panel hidden" id="comparePanel">
+      <h2>Comparação entre lojas <small class="h-sub">o mesmo produto (nº do set LEGO, EAN ou referência) em lojas diferentes</small></h2>
+      <div id="compareList" class="cmp-list"></div>
+    </section>
+
+    <details class="panel" id="monitorPanel">
+      <summary><h2>🔔 Alertas automáticos <small class="h-sub">o teu Worker verifica sozinho e avisa-te no iPhone</small></h2></summary>
+      <p class="mon-desc">O Worker verifica de hora a hora os produtos que segues (☆ Seguir) e as pesquisas guardadas com 🔔,
+        e envia uma notificação quando um preço desce, fica abaixo do teu alvo, volta ao stock ou aparece um produto novo —
+        mesmo com a app fechada.</p>
+      <div id="monStatus"></div>
+      <div class="buttons">
+        <button type="button" id="monEnable">🔔 Ativar notificações neste aparelho</button>
+        <button type="button" id="monTest">Enviar teste</button>
+        <button type="button" id="monRun">▶ Verificar agora</button>
+      </div>
+      <h2 class="mt">Últimos alertas</h2>
+      <div id="monAlerts" class="alerts"></div>
+    </details>
 
     <section class="panel hidden" id="kwPanel">
       <h2>Palavras-chave</h2>
@@ -204,7 +269,15 @@
   </div>
 
   <script src="bg.js"></script>
-  <script src="crawler.js"></script>
-  <script src="app.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/extract-lite.js"></script>
+  <script src="js/crawler.js"></script>
+  <script src="js/deals.js"></script>
+  <script src="js/items.js"></script>
+  <script src="js/watch.js"></script>
+  <script src="js/monitor.js"></script>
+  <script src="js/sites.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

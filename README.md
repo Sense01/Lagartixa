@@ -1,58 +1,80 @@
 # 🕷️ Web Crawler (GitHub Pages)
 
-Crawler que corre inteiramente no browser — HTML, CSS e JavaScript puros, sem build nem backend.
+Caçador de produtos e promoções que corre no browser (HTML, CSS e JavaScript puros, sem build),
+com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alertas para o iPhone.
 
 ## Funcionalidades
 
-- **Sites e palavras-chave**: um ou vários sites (um por linha) e palavras/expressões a procurar,
-  com contagem por página, trechos destacados e resumo por palavra.
-- **Produtos, preços e descontos**: deteta produtos e filtra por **preço mínimo/máximo** e **desconto mínimo (%)**.
-  - **Lidl** (todas as lojas `lidl.xx`): as páginas `/q/query/…` e `/q/search?…` carregam os produtos por JavaScript,
-    por isso a app usa diretamente a API de pesquisa do Lidl (nome, marca, preço, preço antigo, % desconto, imagem).
-  - Outros sites: dados estruturados **JSON-LD (schema.org Product)** e, se não houver, heurística no HTML.
-- **Screenshot por produto**: captura da página de cada produto (WordPress mShots ou thum.io, grátis)
-  e botão **📸 Guardar** que gera um cartão PNG (foto, preço, desconto) — no iPhone abre a folha de partilha
-  para guardar nas Fotografias.
-- **"É bom negócio?"**: o Claude pesquisa na web o preço típico, o mais baixo e o PVP de cada produto e dá um veredicto (via o teu Worker; ver `worker/README.md`).
-- **Ficar dentro da secção**: ao começar em `/componentes/`, só segue links dessa secção (não perde tempo em contactos, blog…).
-- **Notificação quando termina** + som + vibração + número no ícone da app.
-- **Proxies com troca automática**: se um proxy falhar, tenta o seguinte. Suporta o teu próprio proxy (ver `worker/`).
-- Exportação: JSON (páginas + produtos), CSV de páginas, CSV de produtos.
-- Fundo fluido animado com linhas de fluxo, interface em vidro, modo escuro/claro (segue o sistema até escolheres), ícone para iPhone.
-- Link com parâmetros: `?site=lidl.fr&kw=parkside&max=150&desc=20`
+**Lojas (📚)**
+- **Diretório de lojas testadas** (`data/sites.json`): 24 lojas PT/FR com estado verificado (✅ funciona / ⚠️ parcial / ⛔ bloqueia),
+  categoria, método de leitura, notas sobre o `robots.txt` e endereços de partida prontos — carrega em **Usar** (ou **＋** para juntar várias lojas).
+- **Verificador de compatibilidade**: cola o endereço de qualquer loja e a app testa, através do teu Worker, o `robots.txt`,
+  bloqueios/captchas, páginas só com JavaScript, o método de leitura e quantos produtos com preço encontra. As lojas testadas ficam
+  no teu diretório pessoal. **🔍 Testar agora** volta a confirmar qualquer loja da lista.
 
-## Publicar no GitHub Pages
+**Pesquisar**
+- Um ou vários sites, palavras-chave, preço mínimo/máximo e desconto mínimo.
+- **Pesquisas guardadas** (💾): repete uma pesquisa com um toque; ativa 🔔 para alertas automáticos.
+- **Ficar dentro da secção**: ao começar em `/componentes/` só segue links dessa secção.
+- Lê produtos de: **Lidl** (API de pesquisa), lojas **PrestaShop** (JSON), **JSON-LD** (schema.org)
+  e deteção automática em HTML (ex.: Globaldata, Coolmatica).
+- Respeita `robots.txt` e deteta bloqueios/captchas (sem os contornar).
 
-1. Coloca o conteúdo desta pasta na raiz de um repositório.
-2. **Settings → Pages → Deploy from a branch**, branch `main`, pasta `/ (root)`.
-3. O site fica em `https://<utilizador>.github.io/<repositório>/`.
+**Produtos**
+- Cartões com foto, preço, preço antigo, desconto, **stock** (esgotado / por encomenda) e captura da página.
+- **Histórico de preços** guardado no aparelho: "↓ 2,08 € (-19%) desde 06/11", mini-gráfico e 🏆 mínimo histórico.
+- **Comparação entre lojas**: o mesmo produto (nº do set LEGO, EAN ou referência) noutras lojas — onde é mais barato.
+- Ordenar por **melhores negócios**, maior desconto, maior descida, preço; filtros
+  **só bons negócios**, **esconder esgotados**, **só preços que desceram**.
+- **💡 É bom negócio?** — IA com pesquisa web (Groq/xAI/Anthropic) dá veredicto, preço típico, mais baixo e PVP;
+  usa também o teu histórico e os preços vistos noutras lojas.
+- 📸 cartão PNG do produto (no iPhone abre a folha de partilha para guardar nas Fotografias).
 
-Testar localmente: `python3 -m http.server` e abrir `http://localhost:8000`.
+**Seguir e alertas**
+- **☆ Seguir** produtos, com **preço-alvo** ("avisar abaixo de X €") e botão para atualizar preços.
+- **Alertas automáticos**: o Worker verifica de hora a hora e envia **notificações push** (descida,
+  preço-alvo, regresso ao stock, produto novo) — mesmo com a app fechada.
 
-## No iPhone
+**Outros**: modo escuro/claro com fundo de seda animado, exportação JSON/CSV, ícone e modo app no iPhone.
 
-1. Abre o site no **Safari** → Partilhar → **Adicionar ao ecrã principal**.
-2. Abre a app pelo ícone e carrega em **Iniciar** — na primeira vez pede autorização para notificações.
+## Publicar
 
-Limitações do iOS (são regras da Apple para apps web):
-- Notificações só funcionam com a app **instalada no ecrã principal** (iOS 16.4 ou superior).
-- O iOS **pausa** apps web em segundo plano: o crawling só avança com a app aberta. A notificação é útil
-  quando a app está aberta noutro separador/janela ou com o ecrã ligado.
+1. Coloca o conteúdo desta pasta na raiz de um repositório → **Settings → Pages → Deploy from a branch** (`main`, `/ (root)`).
+2. Configura o Worker: ver [`worker/README.md`](worker/README.md) (código, chave da IA, KV, Cron, notificações).
+3. No iPhone: Safari → Partilhar → **Adicionar ao ecrã principal**.
 
-## Erro "Failed to fetch" / "Todos os proxies falharam"
-
-Significa que os proxies públicos estão em baixo ou o site os bloqueia. Solução recomendada:
-cria o teu proxy grátis no Cloudflare — instruções em [`worker/README.md`](worker/README.md).
+Testar localmente: `python3 -m http.server 8000` e abrir `http://localhost:8000`.
 
 ## Estrutura
 
 | Ficheiro | Conteúdo |
 |---|---|
-| `index.html` | Interface |
-| `style.css` | Estilos (vidro, animações, responsivo) |
-| `bg.js` | Fundo fluido com linhas de fluxo (WebGL, com fallback em CSS) e modo escuro/claro |
-| `crawler.js` | Motor: fila, proxies, robots.txt, extração de produtos/preços, API do Lidl |
-| `app.js` | Interface, galeria de produtos, screenshots, notificações, exportação |
-| `sw.js` | Service worker (necessário para notificações) |
-| `manifest.json`, `apple-touch-icon.png`, `icons/` | Logo e modo app |
-| `worker/` | Proxy próprio para Cloudflare Workers |
+| `index.html`, `style.css`, `bg.js` | Interface, estilos (vidro, temas) e fundo animado (WebGL) |
+| `js/util.js` | Utilitários partilhados (formatação, toast, mini-gráfico) |
+| `js/store.js` | Dados no aparelho: histórico de preços, seguidos, pesquisas, identidade dos produtos |
+| `js/extract-lite.js` | Extração de produtos sem DOM — **partilhado com o Worker** |
+| `js/crawler.js` | Motor do crawler: fila, proxies, robots.txt, Lidl, PrestaShop, JSON-LD, HTML |
+| `js/items.js` | Cartões, filtros, ordenação, comparação entre lojas, cartão PNG |
+| `js/deals.js` | "É bom negócio?" |
+| `js/watch.js` | Produtos seguidos e preço-alvo |
+| `js/monitor.js` | Alertas automáticos e notificações push |
+| `js/sites.js` | Diretório de lojas e verificador de compatibilidade |
+| `data/sites.json` | Base de dados das lojas (verificada em 09/11/2026) |
+| `js/app.js` | Definições, pesquisas guardadas, execução, tabela, exportação |
+| `sw.js`, `manifest.json`, `icons/` | Service worker (push), modo app e ícones |
+| `worker/` | Worker da Cloudflare (`src/main.js` → `cloudflare-worker.js`) |
+| `tools/build_worker.py` | Gera o ficheiro único do Worker (ASCII) |
+| `tests/` | Testes: `tests/index.html` (browser) e `node tests/worker.test.mjs` |
+
+## Testes
+
+- **No browser**: abre `tests/index.html` (também funciona no GitHub Pages em `/tests/`) — 41 testes do crawler,
+  extração (Globaldata, PrestaShop, Lidl, JSON-LD), stock, bloqueios, histórico, comparação, verificador de lojas e validação
+  da base de dados (incluindo que nenhum endereço usa caminhos proibidos pelo `robots.txt`). Usa dados isolados.
+- **Worker**: `node tests/worker.test.mjs` — 25 testes (encriptação push RFC 8291, VAPID, verificação automática,
+  robots.txt, limites, segurança).
+
+## Atualizar a base de dados de lojas
+
+Edita `data/sites.json` (cada loja: `id`, `name`, `domain`, `country`, `categories`, `status` = `ok`/`partial`/`blocked`,
+`method`, `starts` = [{`label`, `url`}], `notes`). Corre `tests/index.html` para validar o ficheiro.
