@@ -622,7 +622,7 @@ class Crawler {
     if (priced(products) < 12) {
       try {
         const lite = LiteX.listingFromHtml(html, base).map((p) => this.makeItem(p, 'html', base));
-        if (priced(lite) > priced(products)) products = lite;
+        if (priced(lite) >= priced(products) && priced(lite)) products = lite;
       } catch {}
     }
 
@@ -686,6 +686,8 @@ class Crawler {
         const { sitemaps, urls } = LiteX.parseSitemap(r.text);
         // indice: so os sub-sitemaps que parecem de produtos (paginas, categorias, blog... ficam para o fim)
         pending = LiteX.rankSitemaps([...pending, ...sitemaps.filter((x) => !done.has(x))]);
+        // ja ha produtos: os sitemaps de paginas, categorias, blog... nao trazem mais
+        if (found) pending = pending.filter((x) => !/pagin|page|categor|blog|news|post|marca|brand|video/i.test(x.split('/').pop().replace(/sitemaps?/gi, '')));
         for (const { loc, title } of urls) {
           let slug = '';
           try { slug = decodeURIComponent(new URL(loc).pathname).replace(/[-_/]+/g, ' '); } catch { continue; }
