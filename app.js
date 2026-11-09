@@ -340,7 +340,7 @@ async function autoEvaluateDeals() {
   let good = 0, done = 0;
   for (const it of top) {
     const d = await evaluateDeal(it);
-    if (d?.error) { if (/proxy|Worker|ANTHROPIC|autorizada/.test(d.error)) break; continue; }
+    if (d?.error) { if (/proxy|Worker|API_KEY|autorizada/.test(d.error)) break; continue; }
     done++;
     if (String(d?.verdict || '').startsWith('bom')) good++;
   }
