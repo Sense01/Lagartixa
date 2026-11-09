@@ -128,6 +128,30 @@ const Value = (() => {
     return `<div class="value ${cls}" title="Comparado com ${esc(v.label)}">📊 <b>${txt}</b> <small>${esc(v.label)}: ${fmtPrice(v.ref)}</small></div>`;
   }
 
+  const COLORS = /^(preto|preta|pretos|branco|branca|azul|azuis|vermelho|vermelha|verde|amarelo|amarela|rosa|roxo|roxa|lilas|cinza|cinzento|cinzenta|prata|prateado|dourado|dourada|laranja|castanho|castanha|bege|grafite|noir|blanc|blanche|bleu|bleue|rouge|vert|verte|jaune|gris|argent|or|violet|rose|black|white|blue|red|green|yellow|grey|gray|silver|gold|pink|purple|orange|prt|bco|az|vm|rx|cz)$/;
+
+  /**
+   * chave do modelo: variantes de cor/tema do mesmo produto, na mesma loja e ao mesmo preco, partilham a chave.
+   * "MONITOR ATIVIDADE GARMIN VIVOFIT JR 2 ELSA AZUL" -> "loja|69.99|monitor atividade garmin vivofit jr 2"
+   */
+  function modelKey(it) {
+    const words = String(it.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(Boolean);
+    if (words.length < 3) return '';
+    // ate a primeira palavra com algarismos (o modelo: "jr 2", "27b36x", "10311"); o que vem depois costuma ser cor/tema
+    let cut = words.findIndex((w) => /\d/.test(w));
+    let base = cut >= 0 ? words.slice(0, cut + 1) : words.slice();
+    while (base.length > 2 && COLORS.test(base[base.length - 1])) base.pop();   // sem algarismos: tira as cores do fim
+    if (base.length < 3) return '';
+    return `${hostOf(it.url)}|${it.price}|${base.join(' ')}`;
+  }
+
+  /** outros produtos desta pesquisa que sao variantes do mesmo modelo */
+  function variantsOf(it, list = items) {
+    const k = modelKey(it);
+    return k ? list.filter((o) => o !== it && modelKey(o) === k) : [];
+  }
+
   /** candidatos para a IA avaliar sozinha: sem referencia boa (so PVPR, estimativa ou nada), os mais promissores primeiro */
   function needsAi(list, max = 12) {
     const V = analyze(list);
@@ -135,8 +159,10 @@ const Value = (() => {
       .filter((it) => it.price > 0 && it.availability !== 'out' && !it.deal)
       .filter((it) => { const v = V.get(it); return !v || ['pvpr', 'semelhantes'].includes(v.basis); })
       .sort((a, b) => ((V.get(b)?.pct ?? 0) + (b.discount ?? 0)) - ((V.get(a)?.pct ?? 0) + (a.discount ?? 0)))
+      // uma avaliacao por modelo: as variantes de cor/tema herdam o resultado
+      .filter((it, i, arr) => { const k = modelKey(it); return !k || arr.findIndex((o) => modelKey(o) === k) === i; })
       .slice(0, max);
   }
 
-  return { analyze, info, html, typeKey, sizeKey, needsAi, BASIS, _v: 0 };
+  return { analyze, info, html, typeKey, sizeKey, modelKey, variantsOf, needsAi, BASIS, _v: 0 };
 })();

@@ -153,6 +153,20 @@
     ok(Value.typeKey('MONITOR LED GAMING AOC') === 'monitor led' && Value.typeKey('SUPORTE MONITOR NAPOFIX') === 'suporte monitor', 'tipo do produto pelas primeiras palavras');
   }
 
+  group('Variantes do mesmo modelo');
+  {
+    const u = (x) => `https://www.radiopopular.pt/produto/${x}`;
+    const g = ['ELSA AZUL', 'STAR WARS LARANJA', 'PRINCESS LILÁS', 'SPIDER-MAN PRETO'].map((c, i) => ({ name: `MONITOR ATIVIDADE GARMIN VIVOFIT JR 2 ${c}`, url: u('g' + i), price: 69.99, availability: 'in', oldPrice: 99.99 }));
+    const other = { name: 'MONITOR ATIVIDADE GARMIN VIVOFIT JR 3 AZUL', url: u('g9'), price: 79.99, availability: 'in', oldPrice: 99.99 };
+    const k = new Set(g.map(Value.modelKey));
+    ok(k.size === 1 && [...k][0].endsWith('monitor atividade garmin vivofit jr 2'), 'as 4 cores do Vivofit Jr 2 são o mesmo modelo', [...k]);
+    ok(Value.modelKey(other) !== Value.modelKey(g[0]), 'o Vivofit Jr 3 é outro modelo');
+    ok(Value.modelKey({ name: 'Cadeira Gaming Preta', url: u('c1'), price: 99 }) === Value.modelKey({ name: 'Cadeira Gaming Branca', url: u('c2'), price: 99 }), 'sem número de modelo: tira as cores do fim');
+    const need = Value.needsAi([...g, other], 12);
+    ok(need.length === 2, 'a IA avalia 1 vez por modelo (2 em vez de 5)', need.map((x) => x.name));
+    ok(Value.variantsOf(g[0], [...g, other]).length === 3, 'as outras 3 cores herdam a avaliação');
+  }
+
   group('Simulador de revenda');
   {
     const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };

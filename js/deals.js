@@ -31,6 +31,7 @@ function dealHtml(d) {
       <div class="deal-head"><span class="verdict">${label}</span>${d.score != null ? `<span class="score">${Math.round(d.score)}/100</span>` : ''}</div>
       ${nums ? `<div class="deal-nums">${nums}</div>` : ''}
       ${d.summary ? `<div class="deal-sum">${esc(d.summary)}</div>` : ''}
+      ${d.variantOf ? `<div class="deal-src">avaliado no mesmo modelo: ${esc(d.variantOf)}</div>` : ''}
       ${src ? `<div class="deal-src">${src}</div>` : ''}
     </div>`;
 }
@@ -69,6 +70,13 @@ async function evaluateDeal(it, { force = false } = {}) {
     }
     it.deal = data;
     Store.setDeal(it, data);
+    // variantes do mesmo modelo (outras cores/temas, mesma loja e preco) recebem o mesmo resultado sem gastar avaliacoes
+    for (const v of Value.variantsOf(it)) {
+      if (v.deal && !v.deal.error && !v.deal.loading) continue;
+      v.deal = { ...data, variantOf: it.name };
+      Store.setDeal(v, v.deal);
+      refreshCard(v);
+    }
   } catch (e) {
     it.deal = { error: /Failed to fetch|Load failed|NetworkError/.test(e.message)
       ? 'O Worker não respondeu — confirma que tem a versão nova (com /deal)' : e.message, retryAfter: e.retryAfter };
@@ -89,7 +97,7 @@ async function autoEvaluateDeals() {
     for (let t = 0; t < 3 && d?.retryAfter; t++) {
       const wait = Math.min(90, d.retryAfter + 2);
       it.deal = { loading: true }; refreshCard(it);
-      toast(`📊 A IA pediu uma pausa — continuo daqui a ${wait} s (${done}/${top.length})`, 4000);
+      toast(`⏳ Limite por minuto da Groq (plano gratuito) — continuo daqui a ${wait} s (${done}/${top.length})`, 5000);
       await new Promise((r) => setTimeout(r, wait * 1000));
       d = await evaluateDeal(it, { force: true });
     }
