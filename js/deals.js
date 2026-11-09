@@ -8,6 +8,14 @@ function workerBase() {
   try { return new URL(tpl.replace('{url}', 'x').replace('{rawurl}', 'x')).origin; } catch { return null; }
 }
 
+/** cabecalho com o token da app (o mesmo &token=... que esta no endereco de "O meu proxy") */
+function workerHeaders() {
+  try {
+    const t = new URL($('customProxy').value.trim().replace('{url}', 'x').replace('{rawurl}', 'x')).searchParams.get('token');
+    return t ? { 'X-App-Token': t } : {};
+  } catch { return {}; }
+}
+
 const VERDICTS = {
   bom: ['Bom negócio', 'v-bom'],
   razoavel: ['Preço normal', 'v-razoavel'],
@@ -53,7 +61,7 @@ async function evaluateDeal(it, { force = false } = {}) {
     const name = it.brand && !it.name.toLowerCase().includes(it.brand.toLowerCase()) ? `${it.brand} ${it.name}` : it.name;
     const res = await fetch(base + '/deal', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...workerHeaders() },
       body: JSON.stringify({
         name, price: it.price, oldPrice: it.oldPrice, currency: 'EUR',
         store: hostOf(it.url), country: SiteDir.countryFor(it.url) || countryOf(it.url),

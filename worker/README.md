@@ -63,12 +63,24 @@ Depois é só **☆ Seguir** produtos (podes definir "Avisar abaixo de X €") e
 
 Se houver mais de 3 alertas de uma vez, chega uma notificação-resumo.
 
+## 6. Token da app (recomendado)
+
+A verificação de origem só trava outros sites; um script pode falsificá-la. Com um token, só a tua app usa o Worker.
+
+1. Inventa uma palavra-passe longa (ex.: 30 letras e números ao calhas).
+2. No Worker: **Settings → Variables and Secrets → + Add** → tipo **Secret**, nome **`APP_TOKEN`**, valor = essa palavra-passe → **Deploy**.
+3. Na app, em **O meu proxy**, acrescenta `&token=` + a palavra-passe no fim:
+   `https://crawler-proxy.….workers.dev/?url={url}&token=A-TUA-PALAVRA-PASSE`
+
+O token fica guardado só no teu aparelho (repete o passo 3 em cada aparelho). Sem `APP_TOKEN`, o Worker funciona como antes.
+
 ## Limites do plano grátis (já respeitados pelo código)
 
 - 100 000 pedidos/dia ao Worker.
 - **50 sub-pedidos por execução**: cada verificação faz no máximo ~38 pedidos às lojas
   (até 25 produtos seguidos + até 3 sites por pesquisa), o resto fica para as notificações.
-- KV: 1000 escritas/dia — cada verificação faz 1 escrita (24/dia) + 1 por avaliação de negócio.
+- KV: 1000 escritas/dia — cada verificação faz 2 escritas (estado + histórico, 48/dia) + 1 por avaliação de negócio.
+- CPU: o histórico (até 1500 produtos × 30 dias) fica numa chave própria, por isso `/state`, `/sync` e as notificações não o leem.
 - O Worker respeita o `robots.txt` de cada loja e ignora páginas com captcha/bloqueio.
 
 ## Testes

@@ -11,6 +11,7 @@
  *   - Segredo AI_API_KEY (gsk_... Groq, xai-... xAI, sk-ant-... Anthropic)  -> /deal
  *   - KV namespace ligado com o nome CRAWLER_KV                            -> alertas e limites
  *   - Cron Trigger "0 * * * *"                                             -> verificacao automatica
+ *   - Segredo APP_TOKEN (opcional, recomendado): so aceita pedidos com ?token=... ou X-App-Token
  *
  * Este ficheiro e gerado por tools/build_worker.py (nao editar a mao).
  * ASCII only.
@@ -53,7 +54,7 @@ const MONITOR = {
   alertsKept: 100,
   historyPoints: 90,
   histItems: 1500,                    // historico de todos os produtos das pesquisas (para comparar e detetar promocoes falsas)
-  histPoints: 60,
+  histPoints: 30,
   robotsTtlMs: 24 * 3600e3,
 };
 
@@ -73,14 +74,19 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': allowed && origin ? origin : '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, X-App-Token',
       'Access-Control-Expose-Headers': 'X-Final-Url',
       Vary: 'Origin',
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (!allowed) return new Response('Origem nao autorizada', { status: 403, headers: cors });
 
-    const path = new URL(request.url).pathname.replace(/\/+$/, '') || '/';
+    const reqUrl = new URL(request.url);
+    // segredo opcional APP_TOKEN: a Origin pode ser falsificada por scripts, o token nao
+    if (env.APP_TOKEN && (request.headers.get('X-App-Token') || reqUrl.searchParams.get('token')) !== env.APP_TOKEN) {
+      return new Response('Falta o token da app', { status: 401, headers: cors });
+    }
+    const path = reqUrl.pathname.replace(/\/+$/, '') || '/';
     const api = {
       '/deal': () => handleDeal(request, env, ctx, cors),
       '/state': () => handleState(env, cors),
@@ -154,10 +160,21 @@ async function kvGet(env, key, fallback) {
 }
 const kvPut = (env, key, value, opts) => kv(env).put(key, JSON.stringify(value), opts);
 
-const emptyState = () => ({ watch: [], searches: [], prices: {}, seen: {}, baselined: {}, robots: {}, alerts: [], lastRun: null, cron: false, hist: {}, alertMinBelow: 0 });
+const emptyState = () => ({ watch: [], searches: [], prices: {}, seen: {}, baselined: {}, robots: {}, alerts: [], lastRun: null, cron: false, histCount: 0, alertMinBelow: 0 });
 
 async function loadState(env) {
   return { ...emptyState(), ...(await kvGet(env, 'state', {})) };
+}
+
+// o historico fica numa chave propria: e grande e so o Cron e /history precisam dele
+async function loadHist(env, st) {
+  return (await kvGet(env, 'hist', null)) || st.hist || {};   // st.hist: estado antigo (antes da chave propria)
+}
+
+async function saveState(env, st, hist) {
+  const { hist: _old, ...rest } = st;
+  if (hist) { rest.histCount = Object.keys(hist).length; await kvPut(env, 'hist', hist); }
+  await kvPut(env, 'state', rest);
 }
 
 async function publicState(env, st) {
@@ -166,7 +183,7 @@ async function publicState(env, st) {
   return {
     watch: st.watch.map((w) => ({ key: w.key, name: w.name, target: w.target, last: st.prices[w.key] || null })),
     searches: st.searches.map((s) => ({ id: s.id, name: s.name, tracked: Object.keys(st.seen[s.id] || {}).length })),
-    histItems: Object.keys(st.hist || {}).length, alertMinBelow: st.alertMinBelow || 0,
+    histItems: st.histCount || Object.keys(st.hist || {}).length, alertMinBelow: st.alertMinBelow || 0,
     alerts: st.alerts.slice(0, 40),
     lastRun: st.lastRun, lastSummary: st.lastSummary || null, cron: !!st.cron,
     subscriptions: subs.length,
@@ -196,7 +213,7 @@ async function handleHistory(request, env, cors) {
   const st = await loadState(env);
   const since = new URL(request.url).searchParams.get('since') || '';
   const out = {};
-  for (const [k, e] of Object.entries(st.hist || {})) {
+  for (const [k, e] of Object.entries(await loadHist(env, st))) {
     const pts = since ? e.h.filter((x) => x[0] >= since) : e.h;
     if (pts.length) out[k] = { ...e, h: pts };
   }
@@ -209,7 +226,6 @@ function histAdd(st, it) {
   const e = (st.hist[k] ||= { n: it.name, u: it.url, s: hostOf(it.url), id: LiteX.productIdentity(it), h: [] });
   e.n = it.name || e.n;
   e.id = LiteX.productIdentity(it) || e.id;
-  if (it.oldPrice) e.o = it.oldPrice;      // preco antigo anunciado (para detetar promocoes falsas)
   e.h = e.h.filter((x) => x[0] !== today());
   e.h.push([today(), it.price]);
   if (e.h.length > MONITOR.histPoints) e.h = e.h.slice(-MONITOR.histPoints);
@@ -246,15 +262,19 @@ async function handleSync(request, env, cors) {
   st.watch = watch;
   st.searches = searches;
   if (body.alertMinBelow != null) st.alertMinBelow = Math.max(0, Math.min(90, Number(body.alertMinBelow) || 0));
-  // limpa estado de pesquisas/produtos que ja nao existem
-  const ids = new Set(searches.map((s) => s.id));
-  for (const id of Object.keys(st.seen)) if (!ids.has(id)) { delete st.seen[id]; delete st.baselined[id]; }
-  const keys = new Set(watch.map((w) => w.key));
-  for (const k of Object.keys(st.prices)) if (!keys.has(k)) delete st.prices[k];
+  dropRemoved(st);
   // o preco que a app viu serve de ponto de partida
   for (const w of watch) if (!st.prices[w.key] && w.price != null) st.prices[w.key] = { p: w.price, t: Date.now(), av: null, hist: [[today(), w.price]] };
-  await kvPut(env, 'state', st);
+  await saveState(env, st);
   return json(await publicState(env, st), 200, cors);
+}
+
+/** limpa estado de pesquisas/produtos que ja nao estao nas listas */
+function dropRemoved(st) {
+  const ids = new Set(st.searches.map((s) => s.id));
+  for (const id of Object.keys(st.seen)) if (!ids.has(id)) { delete st.seen[id]; delete st.baselined[id]; }
+  const keys = new Set(st.watch.map((w) => w.key));
+  for (const k of Object.keys(st.prices)) if (!keys.has(k)) delete st.prices[k];
 }
 
 async function handleRun(request, env, cors) {
@@ -274,48 +294,12 @@ async function handleRun(request, env, cors) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function itemKey(url) {
-  try {
-    const u = new URL(url);
-    [...u.searchParams.keys()].forEach((k) => /^(utm_|srsltid|gclid|fbclid|mc_|_ga|ref$|sc_|cmp)/i.test(k) && u.searchParams.delete(k));
-    u.searchParams.sort();
-    const q = u.searchParams.toString();
-    return (u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/+$/, '') + (q ? '?' + q : '')).toLowerCase();
-  } catch { return String(url).toLowerCase(); }
-}
+const itemKey = (url) => LiteX.itemKey(url);
 
 function blockedPage(r) {
   if (!r) return true;
   if (r.status === 401 || r.status === 403 || r.status === 203 || r.status === 429) return true;
   return /Robot Check|validateCaptcha|cf-chl-|challenge-platform|Just a moment\.\.\.|px-captcha|_Incapsula_Resource|captcha-delivery|verify you are human/i.test((r.text || '').slice(0, 20000));
-}
-
-function parseRobots(txt) {
-  const rules = [];
-  let applies = false, lastWasAgent = false;
-  for (let line of String(txt).split(/\r?\n/)) {
-    line = line.replace(/#.*/, '').trim();
-    if (!line) continue;
-    const i = line.indexOf(':');
-    if (i < 0) continue;
-    const key = line.slice(0, i).trim().toLowerCase();
-    const val = line.slice(i + 1).trim();
-    if (key === 'user-agent') { if (!lastWasAgent) applies = false; if (val === '*') applies = true; lastWasAgent = true; continue; }
-    lastWasAgent = false;
-    if (applies && (key === 'allow' || key === 'disallow') && val) rules.push({ allow: key === 'allow', path: val });
-  }
-  return rules;
-}
-
-function robotsAllows(url, rules) {
-  const u = new URL(url);
-  const path = u.pathname + u.search;
-  let best = null;
-  for (const r of rules) {
-    const re = new RegExp('^' + r.path.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'));
-    if (re.test(path) && (!best || r.path.length > best.path.length)) best = r;
-  }
-  return !best || best.allow;
 }
 
 /** contexto de uma execucao: orcamento de pedidos, robots.txt em cache */
@@ -325,7 +309,9 @@ function makeCtx(st) {
     errors: [],
     async get(url, { json: wantJson = false } = {}) {
       if (this.budget <= 0) return null;
-      if (!(await this.allowed(url))) { this.errors.push(`robots.txt nao permite ${url}`); return null; }
+      const ok = await this.allowed(url);
+      if (ok == null) return null;                     // sem orcamento para ler o robots.txt: nao le a pagina
+      if (!ok) { this.errors.push(`robots.txt nao permite ${url}`); return null; }
       this.budget--;
       try {
         const res = await fetch(url, { headers: wantJson ? { ...BROWSER_HEADERS, Accept: 'application/json' } : BROWSER_HEADERS, redirect: 'follow' });
@@ -338,17 +324,17 @@ function makeCtx(st) {
     async allowed(url) {
       const origin = new URL(url).origin;
       const c = st.robots[origin];
-      if (c && Date.now() - c.t < MONITOR.robotsTtlMs) return robotsAllows(url, c.rules);
-      if (this.budget <= 1) return true;
+      if (c && Date.now() - c.t < MONITOR.robotsTtlMs) return LiteX.robotsAllows(url, c.rules);
+      if (this.budget <= 1) return null;
       this.budget--;
       let rules = [];
       try {
         const r = await fetch(origin + '/robots.txt', { headers: BROWSER_HEADERS });
         const t = r.ok ? await r.text() : '';
-        if (!/<html/i.test(t.slice(0, 500))) rules = parseRobots(t);
+        if (!/<html/i.test(t.slice(0, 500))) rules = LiteX.parseRobots(t);
       } catch {}
       st.robots[origin] = { t: Date.now(), rules };
-      return robotsAllows(url, rules);
+      return LiteX.robotsAllows(url, rules);
     },
   };
 }
@@ -379,6 +365,7 @@ function filtersOf(config) {
 
 async function runMonitor(env, { reason = 'cron' } = {}) {
   const st = await loadState(env);
+  st.hist = await loadHist(env, st);
   const c = makeCtx(st);
   const alerts = [];
   const now = Date.now();
@@ -407,12 +394,10 @@ async function runMonitor(env, { reason = 'cron' } = {}) {
     const hist = (prev?.hist || []).filter((h) => h[0] !== today());
     hist.push([today(), p.price]);
     st.prices[w.key] = { p: p.price, t: now, av: p.availability || null, hist: hist.slice(-MONITOR.historyPoints) };
-    st.hist ||= {};
     histAdd(st, { ...p, name: name, url: w.url });
   }
 
   // 2) pesquisas com alertas: produtos novos e descidas de preco (+ historico de todos os produtos)
-  st.hist ||= {};
   let searched = 0;
   const runs = [];
   for (const s of st.searches) {
@@ -464,7 +449,14 @@ async function runMonitor(env, { reason = 'cron' } = {}) {
   const summary = `${checked}/${st.watch.length} produto(s) verificados, ${searched}/${st.searches.length} pesquisa(s), ${alerts.length} alerta(s)` +
     (c.errors.length ? `, ${c.errors.length} aviso(s)` : '');
   st.lastSummary = summary;
-  await kvPut(env, 'state', st);
+  // a verificacao demora: se a app sincronizou entretanto, as listas novas ganham
+  const fresh = await loadState(env);
+  st.watch = fresh.watch; st.searches = fresh.searches; st.alertMinBelow = fresh.alertMinBelow;
+  for (const w of st.watch) if (!st.prices[w.key] && fresh.prices[w.key]) st.prices[w.key] = fresh.prices[w.key];
+  dropRemoved(st);
+  const hist = st.hist;
+  await saveState(env, st, hist);
+  st.hist = hist;
 
   if (alerts.length) {
     const messages = alerts.length <= 3
@@ -678,7 +670,7 @@ async function handleDeal(request, env, ctx, cors) {
   let result = extractVerdict(text) || { verdict: 'incerto', score: null, summary: cleanText(text).slice(-400) };
   if (result.summary) result.summary = cleanText(String(result.summary));
   if (!Array.isArray(result.sources) || !result.sources.length) result.sources = (out.sources || []).slice(0, 4);
-  result.sources = result.sources.slice(0, 5);
+  result.sources = result.sources.filter((x) => /^https?:\/\//i.test(x?.url || '')).slice(0, 5);
   result.checkedAt = new Date().toISOString();
   result.searches = out.searches ?? null;
   result.provider = provider.name + (out.model ? ` (${out.model})` : '');

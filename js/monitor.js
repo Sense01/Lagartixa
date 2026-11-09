@@ -10,7 +10,7 @@ const Monitor = (() => {
     if (!base) throw new Error('Configura "O meu proxy" (o teu Worker) primeiro');
     const res = await fetch(base + path, {
       ...opts,
-      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      headers: { 'Content-Type': 'application/json', ...workerHeaders(), ...(opts.headers || {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
     const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));

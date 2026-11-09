@@ -19,21 +19,32 @@ const Value = (() => {
   const STOP = new Set(['de', 'da', 'do', 'para', 'com', 'e', 'the', 'pour', 'avec', 'et', 'en', 'a', 'o', 'le', 'la']);
 
   const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+  /** mediana de uma lista ORDENADA sem um dos valores (o do proprio produto) */
+  function medianWithout(sorted, v) {
+    let lo = 0, hi = sorted.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < v) lo = mid + 1; else hi = mid; }
+    const at = (j) => sorted[j < lo ? j : j + 1];
+    const n = sorted.length - 1, m = n >> 1;
+    return n % 2 ? at(m) : (at(m - 1) + at(m)) / 2;
+  }
   const median = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
   /** tamanho/capacidade no nome (27", 27 polegadas, 1TB, 500GB, 65W…): produtos so sao parecidos se coincidir */
-  function sizeKey(name) {
+  // memória por nome (a análise corre de novo a cada produto encontrado)
+  const memo = (fn) => { const m = new Map(); return (name) => { const k = String(name || ''); if (!m.has(k)) { if (m.size > 20000) m.clear(); m.set(k, fn(k)); } return m.get(k); }; };
+
+  const sizeKey = memo(function sizeKey(name) {
     const n = String(name || '').toLowerCase();
     const m = n.match(/(\d{2}(?:[.,]\d)?)\s*(?:"|''|\u201d|pol|polegadas|inch)/) || n.match(/\b(\d+(?:[.,]\d+)?)\s*(tb|gb|mah|w|l|kg|cm|mm|hz)\b/);
     return m ? (m[1] + (m[2] || 'in')).replace(',', '.') : '';
-  }
+  });
 
   /** tipo do produto: as duas primeiras palavras do nome ("MONITOR LED GAMING AOC…" -> "monitor led") */
-  function typeKey(name) {
+  const typeKey = memo(function typeKey(name) {
     const words = String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z\s]/g, ' ').split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w));
     return words.length >= 2 ? words.slice(0, 2).join(' ') : '';
-  }
+  });
 
   /**
    * deps (para testes): { identity(it), otherStores(it), history(it) -> [precos], deal(it) }
@@ -67,6 +78,8 @@ const Value = (() => {
       byType.get(key).push(it.price);
     }
 
+    for (const a of byType.values()) a.sort((x, y) => x - y);   // ordenados uma vez (mediana sem copiar)
+
     const out = new Map();
     for (const it of priced) {
       const cands = [];
@@ -95,10 +108,7 @@ const Value = (() => {
       // 5. semelhantes (o mesmo tipo nao e o mesmo produto: referencia mais fraca) (pelo menos 4 do mesmo tipo, sem contar este)
       const k = typeKey(it.name), sz = sizeKey(it.name);
       const peers = k && sz ? (byType.get(k + '|' + sz) || []) : [];
-      if (peers.length >= 5) {
-        const rest = [...peers]; rest.splice(rest.indexOf(it.price), 1);
-        cands.push({ basis: 'semelhantes', ref: median(rest), n: rest.length });
-      }
+      if (peers.length >= 5) cands.push({ basis: 'semelhantes', ref: medianWithout(peers, it.price), n: peers.length - 1 });
       const best = cands[0];   // ja estao por ordem de confianca
       if (!best || !(best.ref > 0)) { out.set(it, promo ? { promo, pct: 0, score: -1e8, good: false, weak: true, label: '', basis: 'none', ref: null } : null); continue; }
       const pct = Math.round((best.ref - it.price) / best.ref * 100);

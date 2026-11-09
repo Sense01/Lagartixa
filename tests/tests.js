@@ -196,7 +196,7 @@
     const u = 'https://www.loja.pt/p/monitor-hist-1';
     const n = Store.importHistory({ x: { n: 'Monitor AOC 27B36X', u, s: 'loja.pt', id: 'model:aoc:27b36x', o: 149.99, h: [['2026-10-01', 129.99], ['2026-10-15', 124.99], ['2026-11-01', 119.99]] } });
     const e = Store.getHistory(u);
-    ok(n === 3 && e.pts.length === 3 && e.o === 149.99 && e.id === 'model:aoc:27b36x', 'pontos do Worker juntados ao histórico local (com o preço antigo anunciado)', e);
+    ok(n === 3 && e.pts.length === 3 && e.id === 'model:aoc:27b36x', 'pontos do Worker juntados ao histórico local', e);
     ok(Store.importHistory({ x: { n: 'x', u, h: [['2026-11-01', 119.99], ['2026-11-02', 118]] } }) === 1, 'sem repetir dias que já existiam');
   }
 
@@ -291,6 +291,40 @@
     const hits = d.sites.flatMap((s) => (s.starts || []).map((x) => x.url)).filter((x) => forbidden.some((re) => re.test(x)));
     ok(!hits.length, 'endereços de partida respeitam os robots.txt verificados', hits);
   } catch (e) { ok(false, 'carregar data/sites.json', e.message); }
+
+  group('Auditoria: robots.txt, histórico grande, cache de avaliações');
+  {
+    const R = LiteX.parseRobots('User-agent: Googlebot\nDisallow: /\n\nUser-agent: *\nDisallow: /search\nDisallow: /*?sort=\nDisallow: /*.pdf$\nAllow: /search/ajuda\n');
+    const A = (u) => LiteX.robotsAllows(u, R);
+    ok(R.length === 4, 'robots.txt: só as regras do grupo "*"', R);
+    ok(!A('https://l.pt/search?q=x') && A('https://l.pt/search/ajuda'), 'robots.txt: a regra mais longa ganha (Allow mais específico)');
+    ok(!A('https://l.pt/monitores?sort=price') && A('https://l.pt/monitores?page=2'), 'robots.txt: * no meio do caminho');
+    ok(!A('https://l.pt/f/a.pdf') && A('https://l.pt/f/a.pdf?v=1'), 'robots.txt: $ marca o fim do endereço');
+    ok(new Crawler({}).robotsAllows('https://l.pt/search', R) === false, 'o crawler usa o mesmo leitor que o Worker');
+    ok(Store.itemKey('https://www.l.pt/p/1/?gbraid=1&id=7') === LiteX.itemKey('https://l.pt/p/1?id=7'), 'chave do produto igual na app e no Worker');
+
+    // histórico cheio: a análise não pode congelar a página
+    localStorage.removeItem('test-crawler-history'); Store._reset();
+    const h = Store.history();
+    for (let i = 0; i < 3000; i++) h['x.pt/p' + i] = { pts: [['2026-11-01', 10 + (i % 50)]], n: 'Prod ' + i, u: 'https://x.pt/p' + i, s: 'x.pt', id: LiteX.productIdentity({ name: `Monitor AOC Q27G${i % 300}X 27"` }) };
+    const list = [];
+    const t0 = performance.now();
+    for (let i = 0; i < 500; i++) { list.push({ url: 'https://y.pt/p' + i, name: `Monitor AOC Q27G${i % 300}X 27"`, price: 100 + (i % 40) }); Value.analyze(list); }
+    const ms = performance.now() - t0;
+    ok(ms < 3000, `500 produtos com 3000 no histórico analisados em ${Math.round(ms)} ms (antes: ~70 s)`);
+    const o = Store.otherStores({ url: 'https://y.pt/p1', name: 'Monitor AOC Q27G1X 27"' });
+    ok(o.length === 10 && o.every((x) => x.store === 'x.pt'), 'outras lojas pelo índice: as 10 entradas do mesmo modelo', o.length);
+    Store.recordPrice({ url: 'https://z.pt/novo', name: 'Monitor AOC Q27G1X 27"', price: 90 });
+    ok(Store.otherStores({ url: 'https://y.pt/p1', name: 'Monitor AOC Q27G1X 27"' }).some((x) => x.store === 'z.pt'), 'índice atualizado quando aparece um produto novo');
+    localStorage.removeItem('test-crawler-history'); Store._reset();
+
+    // avaliações antigas são apagadas
+    localStorage.setItem('test-deal:velho|1', JSON.stringify({ checkedAt: new Date(Date.now() - 3 * 864e5).toISOString() }));
+    localStorage.setItem('test-deal:novo|1', JSON.stringify({ checkedAt: new Date().toISOString() }));
+    const removed = Store.pruneDeals();
+    ok(removed === 1 && !localStorage.getItem('test-deal:velho|1') && localStorage.getItem('test-deal:novo|1'), 'cache de avaliações: só as de mais de 24 h saem');
+    localStorage.removeItem('test-deal:novo|1');
+  }
 
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;

@@ -244,7 +244,8 @@ console.log('\nHistorico de todas as pesquisas e alertas abaixo da media');
     { id: 'b', name: 'Monitores B', config: { sites: 'https://loja-b.pt/monitores', keywords: 'monitor' } },
   ] } }), env, waitCtx);
   await runMonitor(env, { reason: 'cron' });          // primeira vez: so regista
-  let st = JSON.parse(kvs.m.get('state'));
+  let st = { hist: JSON.parse(kvs.m.get('hist')) };
+  ok(!('hist' in JSON.parse(kvs.m.get('state'))) && JSON.parse(kvs.m.get('state')).histCount === 4, 'historico numa chave propria (o estado fica leve)');
   const ids = Object.values(st.hist).map((e) => e.id);
   ok(Object.keys(st.hist).length === 4 && ids.filter((x) => x === 'model:aoc:27b36x').length === 2 && ids.filter((x) => x === 'model:philips:27e2n1500l').length === 2, 'historico guardado para todos os produtos das pesquisas (com o modelo reconhecido nas 2 lojas)', JSON.stringify(ids));
   // novo produto barato na loja A (o mesmo modelo noutra loja custa 119) e outro sem referencia
@@ -265,6 +266,64 @@ console.log('\nExtrator leve (partilhado com a app)');
   const items = LiteX.listingFromHtml(html, 'https://loja.pt/lego');
   ok(items.length === 2 && items[0].price === 8.91 && items[0].oldPrice === 14.99 && items[0].availability === 'out', 'lista simples: preco, preco antigo e stock', JSON.stringify(items[0]));
   ok(LiteX.matchesFilters(items[1], { keywords: ['orquidea'], maxPrice: 20 }) && !LiteX.matchesFilters(items[1], { maxPrice: 15 }), 'filtros de preco e palavras-chave');
+}
+
+/* ======================================================================== */
+console.log('\nAuditoria: corrida com a sincronizacao, robots, token, fontes');
+{
+  // a app sincroniza enquanto o Cron esta a ler as lojas: as listas novas nao se perdem
+  routes.length = 0;
+  let env;
+  routes.push({ match: (u) => u.endsWith('/robots.txt'), reply: () => new Response('User-agent: *\nAllow: /\n') });
+  routes.push({ match: (u) => u.includes('loja-c.pt/lista'), reply: async () => {
+    await W.fetch(req('/sync', { method: 'POST', body: { watch: [], searches: [
+      { id: 'c', name: 'Lista C', config: { sites: 'https://loja-c.pt/lista', keywords: '' } },
+      { id: 'nova', name: 'Nova', config: { sites: 'https://loja-c.pt/outra', keywords: '' } },
+    ] } }), env, waitCtx);
+    return new Response('<div></div>');
+  } });
+  env = { CRAWLER_KV: makeKV({ state: { searches: [{ id: 'c', name: 'Lista C', config: { sites: 'https://loja-c.pt/lista', keywords: '' } }] } }) };
+  await runMonitor(env, { reason: 'cron' });
+  const st = JSON.parse(env.CRAWLER_KV.m.get('state'));
+  ok(st.searches.map((s) => s.id).join(',') === 'c,nova', 'pesquisa ativada durante a verificacao nao e apagada pelo Cron', st.searches.map((s) => s.id));
+
+  // estado antigo com o historico dentro: passa para a chave propria
+  env = { CRAWLER_KV: makeKV({ state: { hist: { 'x.pt/p': { n: 'X', u: 'https://x.pt/p', s: 'x.pt', h: [['2026-01-01', 5]] } } } }) };
+  const hres = await (await W.fetch(req('/history'), env, waitCtx)).json();
+  ok(hres.count === 1, '/history le o historico antigo (antes da migracao)');
+  await runMonitor(env, { reason: 'cron' });
+  ok(JSON.parse(env.CRAWLER_KV.m.get('hist'))['x.pt/p'] && !JSON.parse(env.CRAWLER_KV.m.get('state')).hist, 'historico antigo migrado para a chave propria');
+
+  // sem orcamento para ler o robots.txt: a pagina nao e lida
+  routes.length = 0;
+  routes.push({ match: () => true, reply: () => new Response('User-agent: *\nAllow: /\n') });
+  const sites = Array.from({ length: 40 }, (_, i) => `https://site${i}.pt/lista`);
+  // o robots.txt do primeiro site ja esta em cache: o orcamento chega a 1 numa loja nova
+  env = { CRAWLER_KV: makeKV({ state: { robots: { 'https://site0.pt': { t: Date.now(), rules: [] } }, searches: sites.map((u, i) => ({ id: 's' + i, name: 'S' + i, config: { sites: u, keywords: '' } })) } }) };
+  calls.length = 0;
+  await runMonitor(env, { reason: 'cron' });
+  const pages = calls.filter((c) => !c.url.endsWith('/robots.txt')).map((c) => new URL(c.url).origin);
+  const robots = new Set(calls.filter((c) => c.url.endsWith('/robots.txt')).map((c) => new URL(c.url).origin));
+  ok(pages.length > 0 && pages.every((o) => o === 'https://site0.pt' || robots.has(o)), 'nenhuma pagina lida sem ler antes o robots.txt da loja', pages.filter((o) => o !== 'https://site0.pt' && !robots.has(o)));
+
+  // APP_TOKEN
+  env = { CRAWLER_KV: makeKV(), APP_TOKEN: 'segredo123' };
+  ok((await W.fetch(req('/state'), env, waitCtx)).status === 401, 'com APP_TOKEN: pedido sem token recusado (mesmo com a Origin certa)');
+  ok((await W.fetch(req('/?url=https://loja.pt/'), env, waitCtx)).status === 401, 'com APP_TOKEN: proxy sem token recusado');
+  const withHeader = new Request('https://w.dev/state', { headers: { Origin: ORIGIN, 'X-App-Token': 'segredo123' } });
+  ok((await W.fetch(withHeader, env, waitCtx)).status === 200, 'com APP_TOKEN: cabecalho X-App-Token aceite');
+  routes.length = 0;
+  routes.push({ match: (u) => u.startsWith('https://loja.pt/'), reply: () => new Response('ok') });
+  ok((await W.fetch(req('/?url=' + encodeURIComponent('https://loja.pt/') + '&token=segredo123'), env, waitCtx)).status === 200, 'com APP_TOKEN: proxy com &token= funciona');
+  const pre = await W.fetch(req('/state', { method: 'OPTIONS' }), env, waitCtx);
+  ok(/X-App-Token/.test(pre.headers.get('Access-Control-Allow-Headers')), 'CORS permite o cabecalho X-App-Token');
+
+  // fontes da IA: so http(s)
+  routes.length = 0;
+  routes.push({ match: (u) => u.includes('groq.com'), reply: () => new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"bom","score":80,"summary":"ok","sources":[{"title":"mau","url":"javascript:alert(1)"},{"title":"bom","url":"https://kuantokusta.pt/x"}]}' } }] })) });
+  env = { CRAWLER_KV: makeKV(), AI_API_KEY: 'gsk_x' };
+  const d = await (await W.fetch(req('/deal', { method: 'POST', body: { name: 'Produto fontes', price: 10 } }), env, waitCtx)).json();
+  ok(d.sources.length === 1 && d.sources[0].url.startsWith('https://'), 'fontes da IA: links javascript: removidos', d.sources);
 }
 
 console.log(`\n${passed} passaram, ${failed} falharam\n`);

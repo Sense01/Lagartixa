@@ -37,27 +37,48 @@ const Store = (() => {
 
   /* ---------- identidade do produto ---------- */
 
-  const TRACKING = /^(utm_|srsltid|gclid|fbclid|mc_|_ga|ref$|sc_|cmp)/i;
-
-  /** chave estável de um produto numa loja: host + caminho (+ query relevante) */
+  /** chave estável de um produto numa loja: host + caminho (+ query relevante) — partilhada com o Worker */
+  const keyCache = new WeakMap();   // por objeto: a análise pede a chave muitas vezes
   function itemKey(urlOrItem) {
-    const raw = typeof urlOrItem === 'string' ? urlOrItem : urlOrItem?.url;
-    try {
-      const u = new URL(raw);
-      [...u.searchParams.keys()].forEach((k) => TRACKING.test(k) && u.searchParams.delete(k));
-      u.searchParams.sort();
-      const q = u.searchParams.toString();
-      return (u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/+$/, '') + (q ? '?' + q : '')).toLowerCase();
-    } catch { return String(raw || '').toLowerCase(); }
+    if (typeof urlOrItem === 'string' || !urlOrItem) return LiteX.itemKey(urlOrItem);
+    const c = keyCache.get(urlOrItem);
+    if (c && c.u === urlOrItem.url) return c.k;
+    const k = LiteX.itemKey(urlOrItem.url);
+    keyCache.set(urlOrItem, { u: urlOrItem.url, k });
+    return k;
   }
 
   /** identidade do produto independente da loja (para comparar lojas) — partilhada com o Worker (js/extract-lite.js) */
-  const productIdentity = (it) => LiteX.productIdentity(it);
+  // em cache por objeto: a análise pede-a muitas vezes para os mesmos produtos
+  const idCache = new WeakMap();
+  function productIdentity(it) {
+    if (!it || typeof it !== 'object') return LiteX.productIdentity(it);
+    const c = idCache.get(it);
+    const sig = `${it.ean}|${it.brand}|${it.name}|${it.url}|${it.mpn}`;
+    if (c && c.sig === sig) return c.id;
+    const id = LiteX.productIdentity(it);
+    idCache.set(it, { sig, id });
+    return id;
+  }
 
   /* ---------- histórico de preços ---------- */
 
   let historyCache = null;
   const history = () => (historyCache ||= read(K.history, {}));
+
+  // índice identidade -> chaves do histórico (evita percorrer o histórico inteiro por cada produto)
+  let idIndex = null;
+  function byId() {
+    if (!idIndex) {
+      idIndex = new Map();
+      for (const [k, e] of Object.entries(history())) if (e.id) indexAdd(k, e.id);
+    }
+    return idIndex;
+  }
+  function indexAdd(key, id) {
+    const a = idIndex.get(id);
+    if (!a) idIndex.set(id, [key]); else if (!a.includes(key)) a.push(key);
+  }
   const saveHistory = debounce(() => write(K.history, history()), 300);
 
   function pruneHistory(keep = MAX_PRODUCTS) {
@@ -65,6 +86,7 @@ const Store = (() => {
     const keys = Object.keys(h);
     if (keys.length <= keep) return;
     keys.sort((a, b) => (h[b].seen || 0) - (h[a].seen || 0)).slice(keep).forEach((k) => delete h[k]);
+    idIndex = null;
     write(K.history, h);
   }
 
@@ -77,6 +99,7 @@ const Store = (() => {
     const key = itemKey(it);
     const h = history();
     const e = h[key] || { pts: [] };
+    const oldId = e.id;
     const day = today();
     const before = e.pts.filter((p) => p[0] !== day);   // pontos de dias anteriores
     const last = e.pts[e.pts.length - 1];
@@ -86,8 +109,8 @@ const Store = (() => {
       n: it.name, u: it.url, i: it.image || e.i || '', s: hostOf(it.url),
       id: productIdentity(it) || e.id || null, av: it.availability || null, seen: Date.now(),
     });
-    if (it.oldPrice > it.price) e.o = it.oldPrice; else delete e.o;      // preço antigo anunciado (deteção de promoções falsas)
     h[key] = e;
+    if (idIndex) { if (oldId && oldId !== e.id) idIndex = null; else if (e.id) indexAdd(key, e.id); }
     saveHistory();
     if (Object.keys(h).length > MAX_PRODUCTS * 1.1) pruneHistory();
     return analyse(before, it.price);
@@ -119,11 +142,10 @@ const Store = (() => {
       for (const [d, p] of x.h) if (!byDay.has(d) && p > 0) { byDay.set(d, p); added++; }
       e.pts = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-MAX_POINTS);
       e.id = e.id || x.id || null;
-      if (x.o) e.o = x.o;
       e.seen = Math.max(e.seen || 0, Date.now() - 1);
       h[key] = e;
     }
-    if (added) { write(K.history, h); }
+    if (added) { idIndex = null; write(K.history, h); }
     return added;
   }
 
@@ -135,8 +157,10 @@ const Store = (() => {
     if (!id) return [];
     const myHost = hostOf(it.url);
     const out = [];
-    for (const [key, e] of Object.entries(history())) {
-      if (e.id !== id || e.s === myHost || !e.pts.length) continue;
+    const h = history();
+    for (const key of byId().get(id) || []) {
+      const e = h[key];
+      if (!e || e.id !== id || e.s === myHost || !e.pts.length) continue;
       const lastPt = e.pts[e.pts.length - 1];
       out.push({ key, store: e.s, url: e.u, name: e.n, price: lastPt[1], date: lastPt[0], av: e.av });
     }
@@ -219,14 +243,30 @@ const Store = (() => {
   }
   const setDeal = (it, d) => { write(dealKey(it), d); emit('deal'); };
 
+  /** apaga avaliações com mais de 24 h (senão enchem o armazenamento e o histórico é cortado para dar espaço) */
+  function pruneDeals(maxAgeMs = 24 * 3600e3) {
+    try {
+      const old = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k.startsWith(P + 'deal:')) continue;
+        const d = read(k, null);
+        if (!d || !(Date.now() - Date.parse(d.checkedAt) < maxAgeMs)) old.push(k);
+      }
+      old.forEach((k) => localStorage.removeItem(k));
+      return old.length;
+    } catch { return 0; }
+  }
+  if (typeof localStorage !== 'undefined') pruneDeals();
+
   /** só para testes: esquece a cache em memória */
-  function _reset() { historyCache = null; }
+  function _reset() { historyCache = null; idIndex = null; }
 
   return {
     on, itemKey, productIdentity, _reset,
     recordPrice, getHistory, historyStats, otherStores, history, importHistory,
     watchList, isWatched, toggleWatch, updateWatch, removeWatch,
     searches, saveSearch, updateSearch, removeSearch,
-    getDeal, setDeal,
+    getDeal, setDeal, pruneDeals,
   };
 })();

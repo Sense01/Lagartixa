@@ -578,40 +578,9 @@ class Crawler {
     return rules;
   }
 
-  parseRobots(txt) {
-    const rules = [];
-    let applies = false;
-    let lastWasAgent = false;
-    for (let line of txt.split(/\r?\n/)) {
-      line = line.replace(/#.*/, '').trim();
-      if (!line) continue;
-      const idx = line.indexOf(':');
-      if (idx < 0) continue;
-      const key = line.slice(0, idx).trim().toLowerCase();
-      const val = line.slice(idx + 1).trim();
-      if (key === 'user-agent') {
-        if (!lastWasAgent) applies = false;
-        if (val === '*') applies = true;
-        lastWasAgent = true;
-        continue;
-      }
-      lastWasAgent = false;
-      if (!applies) continue;
-      if ((key === 'allow' || key === 'disallow') && val) rules.push({ allow: key === 'allow', path: val });
-    }
-    return rules;
-  }
-
-  robotsAllows(url, rules) {
-    const u = new URL(url);
-    const path = u.pathname + u.search;
-    let best = null;
-    for (const r of rules) {
-      const re = new RegExp('^' + r.path.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'));
-      if (re.test(path) && (!best || r.path.length > best.path.length)) best = r;
-    }
-    return !best || best.allow;
-  }
+  // partilhados com o Worker (js/extract-lite.js)
+  parseRobots(txt) { return LiteX.parseRobots(txt); }
+  robotsAllows(url, rules) { return LiteX.robotsAllows(url, rules); }
 
   /* ---------- parsing de páginas ---------- */
 

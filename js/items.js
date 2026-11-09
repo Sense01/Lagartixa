@@ -98,7 +98,7 @@ function itemCard(it, idx) {
         <a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Abrir ↗</a>
         <button type="button" class="watch-btn ${watched ? 'on' : ''}" aria-pressed="${watched}">${watched ? '★ A seguir' : '☆ Seguir'}</button>
         <button type="button" class="save-card" title="Guardar imagem do produto">📸</button>
-        ${$('dealMode').value !== 'off' && it.price != null
+        ${it.price != null
           ? `<button type="button" class="deal-btn">${it.deal && !it.deal.loading ? '🔄 Reavaliar' : '💡 Negócio?'}</button>` : ''}
       </div>
     </div>`;

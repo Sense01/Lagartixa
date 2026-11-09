@@ -519,6 +519,51 @@ const LiteX = (() => {
     return true;
   }
 
+  /* ---------- robots.txt e chave do produto (partilhados com o Worker) ---------- */
+
+  /** regras Allow/Disallow do grupo "User-agent: *" */
+  function parseRobots(txt) {
+    const rules = [];
+    let applies = false, lastWasAgent = false;
+    for (let line of String(txt || '').split(/\r?\n/)) {
+      line = line.replace(/#.*/, '').trim();
+      if (!line) continue;
+      const i = line.indexOf(':');
+      if (i < 0) continue;
+      const key = line.slice(0, i).trim().toLowerCase();
+      const val = line.slice(i + 1).trim();
+      if (key === 'user-agent') { if (!lastWasAgent) applies = false; if (val === '*') applies = true; lastWasAgent = true; continue; }
+      lastWasAgent = false;
+      if (applies && (key === 'allow' || key === 'disallow') && val) rules.push({ allow: key === 'allow', path: val });
+    }
+    return rules;
+  }
+
+  /** a regra mais longa que coincide ganha; * = qualquer coisa, $ no fim = fim do endereco */
+  function robotsAllows(url, rules) {
+    const u = new URL(url);
+    const path = u.pathname + u.search;
+    let best = null;
+    for (const r of rules || []) {
+      const re = new RegExp('^' + r.path.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'));
+      if (re.test(path) && (!best || r.path.length > best.path.length)) best = r;
+    }
+    return !best || best.allow;
+  }
+
+  const TRACKING = /^(utm_|srsltid|gclid|gbraid|wbraid|fbclid|msclkid|mc_|_ga|ref$|sc_|cmp)/i;
+
+  /** chave estavel de um produto numa loja: host + caminho (+ query sem parametros de seguimento) */
+  function itemKey(url) {
+    try {
+      const u = new URL(url);
+      [...u.searchParams.keys()].forEach((k) => TRACKING.test(k) && u.searchParams.delete(k));
+      u.searchParams.sort();
+      const q = u.searchParams.toString();
+      return (u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/+$/, '') + (q ? '?' + q : '')).toLowerCase();
+    } catch { return String(url || '').toLowerCase(); }
+  }
+
   return {
     decode, stripTags, parsePrice, pricesIn, detectAvailability,
     jsonLdBlocks, productsFromJsonLd, productFromHtml, listingFromHtml,
@@ -526,6 +571,7 @@ const LiteX = (() => {
     isPrestaShopJson, prestaShopItems, lidlApiUrl, lidlItems,
     keywordRegexes, keywordSource, matchesFilters,
     productIdentity, modelCode, brandOf,
+    parseRobots, robotsAllows, itemKey,
   };
 })();
 
