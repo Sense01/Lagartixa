@@ -367,8 +367,11 @@ const LiteX = (() => {
       const tag = (body.slice(pos[0], pos[0] + 12).match(/^<(\w+)/) || [, 'div'])[1];
       const segs = pos.map((p, i) => body.slice(p, Math.min(elementEnd(body, p, tag), i < pos.length - 1 ? Math.max(pos[i + 1], p + 1) : Infinity)));
       const tiles = segs.map((s) => tileFromSegment(s, base)).filter((t) => t.price != null && t.name && t.url);
-      const score = tiles.length - (tiles.length ? 0 : 1000);
-      if (!best || score > best.score || (score === best.score && avg < best.avg)) best = { cls, tiles, score, avg };
+      // conta produtos distintos (um bloco interno, ex. "Entrega em 2 dias", repete o mesmo link em todos os cartoes)
+      const distinct = new Set(tiles.map((t) => t.url)).size;
+      const score = distinct - (distinct ? 0 : 1000);
+      // empate: o elemento de fora (cartao completo) costuma ter nome, link e imagem certos
+      if (!best || score > best.score || (score === best.score && avg > best.avg)) best = { cls, tiles, score, avg };
     }
     const tiles = best?.tiles || [];
     const seen = new Set();
