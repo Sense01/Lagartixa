@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testes — Web Crawler</title>
+  <style>
+    body { font: 15px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 1.5rem; background: #0b0b0c; color: #eee; }
+    h1 { font-size: 1.3rem; margin: 0 0 0.3rem; }
+    #summary { font-weight: 700; margin: 0.5rem 0 1rem; }
+    .pass { color: #5ee0a8; } .fail { color: #ff7a8a; }
+    h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin: 1.2rem 0 0.4rem; }
+    li { list-style: none; margin: 0.15rem 0; }
+    code { color: #aaa; font-size: 0.8rem; word-break: break-all; }
+  </style>
+  <script>window.STORE_PREFIX = 'test-';</script>
+</head>
+<body>
+  <h1>🕷️ Testes do Web Crawler</h1>
+  <div id="summary">A correr…</div>
+  <div id="out"></div>
+  <!-- elementos mínimos que os módulos esperam -->
+  <pre id="log" hidden></pre><div id="toast" hidden></div>
+  <script src="../js/util.js"></script>
+  <script src="../js/store.js"></script>
+  <script src="../js/extract-lite.js"></script>
+  <script src="../js/crawler.js"></script>
+  <script src="../js/sites.js"></script>
+  <script src="tests.js"></script>
+</body>
+</html>

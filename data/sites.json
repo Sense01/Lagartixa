@@ -1,0 +1,1157 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-11-09",
+  "verifiedHow": "Testado através do Worker do utilizador (servidores Cloudflare), nas mesmas condições da app.",
+  "categories": {
+    "informatica": "Informática",
+    "brinquedos": "Brinquedos e LEGO",
+    "supermercado": "Supermercado e variado",
+    "livros": "Livros",
+    "bricolage": "Bricolage e casa",
+    "eletronica": "Eletrónica e eletrodomésticos",
+    "jogos": "Jogos de tabuleiro e cartas",
+    "desporto": "Desporto"
+  },
+  "sites": [
+    {
+      "id": "lidl-pt",
+      "name": "Lidl Portugal",
+      "domain": "lidl.pt",
+      "country": "PT",
+      "categories": [
+        "supermercado",
+        "bricolage",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "API do Lidl",
+      "starts": [
+        {
+          "label": "Pesquisa: Parkside",
+          "url": "https://www.lidl.pt/q/search?q=parkside"
+        },
+        {
+          "label": "Pesquisa: LEGO",
+          "url": "https://www.lidl.pt/q/search?q=lego"
+        }
+      ],
+      "notes": "Usa a API de pesquisa do Lidl (rápida e completa). Troca o termo depois de q= para pesquisar outra coisa."
+    },
+    {
+      "id": "lidl-fr",
+      "name": "Lidl France",
+      "domain": "lidl.fr",
+      "country": "FR",
+      "categories": [
+        "supermercado",
+        "bricolage",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "API do Lidl",
+      "starts": [
+        {
+          "label": "Promoções Bricolage & Jardinage",
+          "url": "https://www.lidl.fr/q/query/promotions?category=Bricolage+%26+Jardinage&online=1&discountFlag=1"
+        },
+        {
+          "label": "Pesquisa: Parkside",
+          "url": "https://www.lidl.fr/q/search?q=parkside"
+        }
+      ],
+      "notes": "Qualquer página de pesquisa/promoções do Lidl (/q/query/… ou /q/search?…) funciona."
+    },
+    {
+      "id": "globaldata",
+      "name": "Globaldata",
+      "domain": "globaldata.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Componentes (toda a secção)",
+          "url": "https://www.globaldata.pt/componentes"
+        },
+        {
+          "label": "Ventoinhas",
+          "url": "https://www.globaldata.pt/componentes/cooling/ventoinhas"
+        }
+      ],
+      "notes": "A pesquisa (/search) é proibida no robots.txt — usa páginas de categoria. Com 'Ficar dentro da secção', começar em /componentes percorre as subcategorias."
+    },
+    {
+      "id": "coolmatica",
+      "name": "Coolmatica",
+      "domain": "coolmatica.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (JSON)",
+      "starts": [
+        {
+          "label": "Componentes",
+          "url": "https://www.coolmatica.pt/store/235-componentes"
+        }
+      ],
+      "notes": "Lê os dados estruturados do PrestaShop (preço, desconto, EAN, stock). A categoria Componentes tem milhares de produtos: para algo concreto usa uma subcategoria."
+    },
+    {
+      "id": "auchan-pt",
+      "name": "Auchan Portugal",
+      "domain": "auchan.pt",
+      "country": "PT",
+      "categories": [
+        "supermercado",
+        "brinquedos",
+        "eletronica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Black Friday",
+          "url": "https://www.auchan.pt/pt/black-friday/"
+        },
+        {
+          "label": "Brinquedos",
+          "url": "https://www.auchan.pt/pt/brinquedos/"
+        },
+        {
+          "label": "Calendários do Advento",
+          "url": "https://www.auchan.pt/pt/natal/calendarios-de-advento/todos-os-calendarios-de-advento/"
+        }
+      ],
+      "notes": "Mostra o PVPR (preço recomendado) ao lado do preço. O robots.txt proíbe filtros (prefn, srule, pmin, pmax) e a pesquisa — usa categorias sem filtros."
+    },
+    {
+      "id": "lego-pt",
+      "name": "LEGO (loja oficial)",
+      "domain": "lego.com",
+      "country": "PT",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Promoções e ofertas",
+          "url": "https://www.lego.com/pt-pt/categories/sales-and-deals"
+        },
+        {
+          "label": "Novidades",
+          "url": "https://www.lego.com/pt-pt/categories/new-sets-and-products"
+        }
+      ],
+      "notes": "Preços oficiais (PVP) — ótima referência para comparar com outras lojas. A página de promoções mostra os primeiros ~22 produtos (os restantes carregam com 'Carregar mais')."
+    },
+    {
+      "id": "wook",
+      "name": "Wook",
+      "domain": "wook.pt",
+      "country": "PT",
+      "categories": [
+        "livros"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Página inicial (destaques e promoções)",
+          "url": "https://www.wook.pt/"
+        }
+      ],
+      "notes": "Livros com preço e preço antigo. O robots.txt permite tudo."
+    },
+    {
+      "id": "bertrand",
+      "name": "Bertrand",
+      "domain": "bertrand.pt",
+      "country": "PT",
+      "categories": [
+        "livros"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Página inicial (destaques e promoções)",
+          "url": "https://www.bertrand.pt/"
+        }
+      ],
+      "notes": "Livros com desconto (ex.: -20%, -50%)."
+    },
+    {
+      "id": "materiel",
+      "name": "Materiel.net",
+      "domain": "materiel.net",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Placas gráficas",
+          "url": "https://www.materiel.net/carte-graphique/l426/"
+        },
+        {
+          "label": "Promo Black Friday",
+          "url": "https://www.materiel.net/n4616/promo-black-friday/"
+        }
+      ],
+      "notes": "A pesquisa (/recherche/, /search/) é proibida no robots.txt — usa categorias. Páginas de eventos (ex.: Black Friday) podem deixar de existir."
+    },
+    {
+      "id": "topachat",
+      "name": "TopAchat",
+      "domain": "topachat.com",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Bons plans",
+          "url": "https://www.topachat.com/p/bons-plans"
+        }
+      ],
+      "notes": "O robots.txt proíbe muitas listagens ordenadas e a pesquisa; a página 'Bons plans' é permitida."
+    },
+    {
+      "id": "king-jouet",
+      "name": "King Jouet",
+      "domain": "king-jouet.com",
+      "country": "FR",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "LEGO — seleção de Natal",
+          "url": "https://www.king-jouet.com/jeux-jouets/catalogue-noel-jeux-jouets-offre-promotion/marque-lego/page1.htm"
+        },
+        {
+          "label": "Calendários do Advento",
+          "url": "https://www.king-jouet.com/jeux-jouets/top-calendriers-de-l-avent/page1.htm"
+        }
+      ],
+      "notes": "O robots.txt só permite a página 1 de cada lista e proíbe a pesquisa. Mostra preço antigo e desconto."
+    },
+    {
+      "id": "ldlc",
+      "name": "LDLC",
+      "domain": "ldlc.com",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "PC portáteis",
+          "url": "https://www.ldlc.com/informatique/ordinateur-portable/pc-portable/c4265/"
+        }
+      ],
+      "notes": "A página carrega, mas os preços da grelha são carregados por JavaScript: só os 'mais vendidos' trazem preço. Seguir produtos individuais funciona melhor."
+    },
+    {
+      "id": "continente",
+      "name": "Continente",
+      "domain": "continente.pt",
+      "country": "PT",
+      "categories": [
+        "supermercado"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial",
+          "url": "https://www.continente.pt/"
+        }
+      ],
+      "notes": "O conteúdo e os preços chegam, mas os links das categorias não estão no HTML — o crawler não consegue navegar a partir da página inicial. Cola diretamente o link de uma categoria."
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "domain": "amazon.fr",
+      "country": "FR",
+      "categories": [
+        "eletronica",
+        "brinquedos",
+        "livros"
+      ],
+      "status": "blocked",
+      "notes": "Mostra captcha a servidores e as condições de uso proíbem robôs. Alternativas: Keepa, CamelCamelCamel ou a Creators API oficial."
+    },
+    {
+      "id": "worten",
+      "name": "Worten",
+      "domain": "worten.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos de servidores (403) e o robots.txt proíbe /search e /api."
+    },
+    {
+      "id": "leroymerlin",
+      "name": "Leroy Merlin",
+      "domain": "leroymerlin.fr",
+      "country": "FR",
+      "categories": [
+        "bricolage"
+      ],
+      "status": "blocked",
+      "notes": "Proteção anti-bot recusa pedidos de servidores (403)."
+    },
+    {
+      "id": "fnac-pt",
+      "name": "Fnac Portugal",
+      "domain": "fnac.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica",
+        "livros"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos de servidores."
+    },
+    {
+      "id": "pcdiga",
+      "name": "PCDiga",
+      "domain": "pcdiga.com",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos de servidores."
+    },
+    {
+      "id": "chip7",
+      "name": "Chip7",
+      "domain": "chip7.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos de servidores."
+    },
+    {
+      "id": "radiopopular",
+      "name": "Rádio Popular",
+      "domain": "radiopopular.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos de servidores."
+    },
+    {
+      "id": "toysrus-pt",
+      "name": "Toys\"R\"Us Portugal",
+      "domain": "toysrus.pt",
+      "country": "PT",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos de servidores."
+    },
+    {
+      "id": "alientech",
+      "name": "Alientech",
+      "domain": "alientech.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Erro do servidor ao pedir a página através do Worker."
+    },
+    {
+      "id": "cdiscount",
+      "name": "Cdiscount",
+      "domain": "cdiscount.com",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Devolve só uma verificação que exige JavaScript (anti-bot)."
+    },
+    {
+      "id": "cex",
+      "name": "CeX (webuy)",
+      "domain": "pt.webuy.com",
+      "country": "PT",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Site em JavaScript e o robots.txt proíbe a pesquisa (/search?stext=)."
+    },
+    {
+      "id": "misterpc",
+      "name": "MisterPC",
+      "domain": "loja.misterpc.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Portáteis",
+          "url": "https://loja.misterpc.pt/portateis/"
+        },
+        {
+          "label": "PCs",
+          "url": "https://loja.misterpc.pt/pcs/"
+        },
+        {
+          "label": "Monitores",
+          "url": "https://loja.misterpc.pt/monitores-novos-seminovos-recondicionados/"
+        },
+        {
+          "label": "Acessórios",
+          "url": "https://loja.misterpc.pt/acessorios/"
+        }
+      ],
+      "notes": "Loja do Porto, especialista em recondicionados. Mostra o preço atual e o de referência, por isso o desconto é calculado. As páginas /page/N/ são permitidas; ordenar e filtrar (?sort=, &page=) é proibido no robots.txt."
+    },
+    {
+      "id": "assismatica",
+      "name": "Assismática",
+      "domain": "assismatica.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Componentes",
+          "url": "https://www.assismatica.pt/pt4/categoria-base/39/componentes"
+        },
+        {
+          "label": "Armazenamento",
+          "url": "https://www.assismatica.pt/pt4/categoria-base/48/armazenamento"
+        },
+        {
+          "label": "Periféricos",
+          "url": "https://www.assismatica.pt/pt4/categoria-base/35/perifericos"
+        },
+        {
+          "label": "Gaming Zone",
+          "url": "https://www.assismatica.pt/pt4/categoria-base/74/gaming-zone"
+        }
+      ],
+      "notes": "Loja de Lisboa com catálogo grande. O robots.txt permite tudo. As subcategorias (/pt4/categoria/…) listam 20 produtos por página com ?p=N. Os mesmos produtos repetem-se em vários blocos; a app remove os duplicados."
+    },
+    {
+      "id": "mauser",
+      "name": "Mauser",
+      "domain": "mauser.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica",
+        "informatica",
+        "bricolage"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Impressão 3D",
+          "url": "https://mauser.pt/impressao-3d"
+        },
+        {
+          "label": "Eletrónica",
+          "url": "https://mauser.pt/eletronica"
+        },
+        {
+          "label": "Informática e telecomunicações",
+          "url": "https://mauser.pt/informatica-e-telecomunicacao"
+        },
+        {
+          "label": "Ferramentas",
+          "url": "https://mauser.pt/ferramentas"
+        },
+        {
+          "label": "Desenvolvimento e maker",
+          "url": "https://mauser.pt/desenvolvimento-e-maker"
+        }
+      ],
+      "notes": "Componentes eletrónicos, maker, ferramentas e energia solar. 24 produtos por página (?page=N é permitido). Na página inicial alguns produtos mostram o preço antigo."
+    },
+    {
+      "id": "kultgames",
+      "name": "Kult Games",
+      "domain": "kultgames.pt",
+      "country": "PT",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (automático)",
+      "starts": [
+        {
+          "label": "Jogos de tabuleiro",
+          "url": "https://www.kultgames.pt/pt/7-jogos-de-tabuleiro"
+        },
+        {
+          "label": "Cartas colecionáveis (Magic, Pokémon…)",
+          "url": "https://www.kultgames.pt/pt/6-jogos-de-cartas-colecionaveis"
+        },
+        {
+          "label": "Tintas e hobby",
+          "url": "https://www.kultgames.pt/pt/4-tintas-hobby-cenario"
+        },
+        {
+          "label": "Funko e merchandising",
+          "url": "https://www.kultgames.pt/pt/8-merchandising-funko-pop"
+        }
+      ],
+      "notes": "Loja de Lisboa. 24 produtos por página com ?p=N; a pesquisa e a ordenação são proibidas no robots.txt. A categoria de Wargames aparecia vazia no teste."
+    },
+    {
+      "id": "philibert",
+      "name": "Philibert",
+      "domain": "philibertnet.com",
+      "country": "FR",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Jeux de société",
+          "url": "https://www.philibertnet.com/fr/50-jeux-de-societe"
+        },
+        {
+          "label": "Jeux enfants",
+          "url": "https://www.philibertnet.com/fr/10780-jeux-enfants"
+        },
+        {
+          "label": "Jeux de cartes",
+          "url": "https://www.philibertnet.com/fr/119-jeux-de-cartes"
+        },
+        {
+          "label": "Jeux de figurines",
+          "url": "https://www.philibertnet.com/fr/8000-jeux-de-figurines"
+        }
+      ],
+      "notes": "Loja de Estrasburgo, das maiores em jogos de tabuleiro. Cerca de 47 produtos por página; ?p=N é permitido, mas ?n=, ordenação e /fr/recherche são proibidos."
+    },
+    {
+      "id": "ludum",
+      "name": "Ludum",
+      "domain": "ludum.fr",
+      "country": "FR",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (automático)",
+      "starts": [
+        {
+          "label": "Jeux de société (página 1)",
+          "url": "https://www.ludum.fr/8598-jeux-de-societe"
+        },
+        {
+          "label": "Jeux enfant",
+          "url": "https://www.ludum.fr/8599-jeux-enfant"
+        }
+      ],
+      "notes": "Muitos descontos (até -70%). O robots.txt proíbe qualquer endereço com parâmetros (?page=), por isso só a página 1 de cada categoria é lida; usa as subcategorias para cobrir mais."
+    },
+    {
+      "id": "mhr",
+      "name": "MHR",
+      "domain": "mhr.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica",
+        "informatica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (destaques)",
+          "url": "https://www.mhr.pt/"
+        }
+      ],
+      "notes": "Loja do Porto (eletrodomésticos e informática). A página inicial mostra produtos com preço, mas as grelhas das categorias são carregadas por JavaScript e chegam vazias. Seguir produtos individuais funciona."
+    },
+    {
+      "id": "almedina",
+      "name": "Almedina",
+      "domain": "almedina.net",
+      "country": "PT",
+      "categories": [
+        "livros"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (destaques)",
+          "url": "https://www.almedina.net/"
+        }
+      ],
+      "notes": "A página inicial abre e mostra preço especial e preço normal (-10%), mas as páginas de categoria devolveram erro através do Worker. O robots.txt proíbe endereços com '?'."
+    },
+    {
+      "id": "castro",
+      "name": "Castro Electrónica",
+      "domain": "castroelectronica.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Abre sem bloqueio, mas nem a página inicial nem as categorias trazem preços no HTML: são carregados por JavaScript."
+    },
+    {
+      "id": "ptrobotics",
+      "name": "PTRobotics",
+      "domain": "ptrobotics.com",
+      "country": "PT",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Proteção anti-robô Anubis: mostra um desafio JavaScript em vez da loja."
+    },
+    {
+      "id": "cybertek",
+      "name": "Cybertek",
+      "domain": "cybertek.fr",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores (erro do lado da loja)."
+    },
+    {
+      "id": "grosbill",
+      "name": "Grosbill",
+      "domain": "grosbill.com",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores (erro do lado da loja)."
+    },
+    {
+      "id": "clickfiel",
+      "name": "Clickfiel",
+      "domain": "clickfiel.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Placas gráficas",
+          "url": "https://www.clickfiel.pt/1/10/Placas-Graficas?ordem=0"
+        },
+        {
+          "label": "Processadores",
+          "url": "https://www.clickfiel.pt/1/5/Processadores?ordem=0"
+        },
+        {
+          "label": "Computadores",
+          "url": "https://www.clickfiel.pt/1/2/Computadores?ordem=0"
+        },
+        {
+          "label": "Monitores",
+          "url": "https://www.clickfiel.pt/1/484/Monitores?ordem=0"
+        }
+      ],
+      "notes": "Loja de informática de Coimbra. O robots.txt permite tudo. 20 produtos por página (&pagina=N)."
+    },
+    {
+      "id": "euronics",
+      "name": "Euronics",
+      "domain": "euronics.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica",
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Informática",
+          "url": "https://www.euronics.pt/pt/informatica_888-206.html"
+        },
+        {
+          "label": "TV e som",
+          "url": "https://www.euronics.pt/pt/tv-e-som_886-204.html"
+        },
+        {
+          "label": "Grandes domésticos",
+          "url": "https://www.euronics.pt/pt/grandes-domesticos_883-201.html"
+        },
+        {
+          "label": "Pequenos domésticos",
+          "url": "https://www.euronics.pt/pt/pequenos-domesticos_884-202.html"
+        }
+      ],
+      "notes": "Rede nacional de lojas de eletrodomésticos. 12 produtos por página (?page=N é permitido). O robots.txt pede 1 segundo entre pedidos: usa um atraso de pelo menos 1000 ms."
+    },
+    {
+      "id": "maxmat",
+      "name": "Maxmat",
+      "domain": "maxmat.pt",
+      "country": "PT",
+      "categories": [
+        "bricolage"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Máquinas de jardim",
+          "url": "https://www.maxmat.pt/pt/produtos/jardim/maquinas-de-jardim_1302-416.html"
+        },
+        {
+          "label": "Jardim (toda a secção)",
+          "url": "https://www.maxmat.pt/pt/produtos/jardim_1138.html"
+        },
+        {
+          "label": "Construção (toda a secção)",
+          "url": "https://www.maxmat.pt/pt/produtos/construcao_1049.html"
+        }
+      ],
+      "notes": "Bricolage e construção. As páginas principais (Jardim, Construção…) só têm submenus; os preços estão nas subcategorias. Com 'Ficar dentro da secção' a app desce até elas."
+    },
+    {
+      "id": "leya",
+      "name": "LeYa Online",
+      "domain": "leyaonline.com",
+      "country": "PT",
+      "categories": [
+        "livros"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Promoções 1.º ciclo",
+          "url": "https://www.leyaonline.com/pt/promocoes/1-ciclo/"
+        },
+        {
+          "label": "Apoio escolar",
+          "url": "https://www.leyaonline.com/pt/apoio-escolar/"
+        },
+        {
+          "label": "Escolar",
+          "url": "https://www.leyaonline.com/pt/escolar"
+        }
+      ],
+      "notes": "Loja do grupo LeYa, forte em material escolar e livros de apoio. 24 produtos por página; /pt/loja/ e /livrosescolares/ são proibidos no robots.txt."
+    },
+    {
+      "id": "rueducommerce",
+      "name": "Rue du Commerce",
+      "domain": "rueducommerce.fr",
+      "country": "FR",
+      "categories": [
+        "informatica",
+        "eletronica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Informatique",
+          "url": "https://www.rueducommerce.fr/v/70000/informatique/"
+        },
+        {
+          "label": "Composants",
+          "url": "https://www.rueducommerce.fr/v/70012/composants/"
+        },
+        {
+          "label": "Électroménager",
+          "url": "https://www.rueducommerce.fr/v/70004/electromenager/"
+        }
+      ],
+      "notes": "Do grupo LDLC. As páginas /v/ mostram os mais vendidos e as melhores ofertas, com preço antigo e desconto. A paginação (/produits/page) e /recherche/ são proibidas no robots.txt."
+    },
+    {
+      "id": "joueclub",
+      "name": "JouéClub",
+      "domain": "joueclub.fr",
+      "country": "FR",
+      "categories": [
+        "brinquedos",
+        "jogos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Construction et maquettes (LEGO…)",
+          "url": "https://www.joueclub.fr/nos-univers/jeux-de-constructions-maquettes.html"
+        },
+        {
+          "label": "Jeux de société",
+          "url": "https://www.joueclub.fr/nos-univers/jeux-de-societe.html"
+        },
+        {
+          "label": "Jouets éducatifs",
+          "url": "https://www.joueclub.fr/nos-univers/jouets-educatifs.html"
+        }
+      ],
+      "notes": "Maior rede de lojas de brinquedos independentes de França. Cerca de 54 produtos por página (?pageNumber-3=N é permitido)."
+    },
+    {
+      "id": "espritjeu",
+      "name": "Esprit Jeu",
+      "domain": "espritjeu.com",
+      "country": "FR",
+      "categories": [
+        "jogos",
+        "brinquedos"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "Jeux de stratégie",
+          "url": "https://www.espritjeu.com/jeux-de-strategie.html"
+        },
+        {
+          "label": "Jeux d'ambiance",
+          "url": "https://www.espritjeu.com/jeux-dambiance.html"
+        },
+        {
+          "label": "Cartes et JCC",
+          "url": "https://www.espritjeu.com/cartes-et-jcc.html"
+        },
+        {
+          "label": "Jeux pour enfants",
+          "url": "https://www.espritjeu.com/jeux-pour-enfants.html"
+        }
+      ],
+      "notes": "Loja de jogos de tabuleiro com muitos packs em promoção (preço riscado). 30 produtos por página (?numPage=N é permitido); filtros proibidos."
+    },
+    {
+      "id": "electrodepot",
+      "name": "Electro Dépôt",
+      "domain": "electrodepot.fr",
+      "country": "FR",
+      "categories": [
+        "eletronica",
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "HTML (deteção automática)",
+      "starts": [
+        {
+          "label": "PC portables",
+          "url": "https://www.electrodepot.fr/informatique-gaming-tablette/ordinateur/ordinateur-portable.html"
+        },
+        {
+          "label": "PC portables reconditionnés",
+          "url": "https://www.electrodepot.fr/informatique-gaming-tablette/ordinateur/ordinateur-portable-reconditionne.html"
+        },
+        {
+          "label": "TV 109–146 cm",
+          "url": "https://www.electrodepot.fr/tv-image-son/television/tv-de-109-a-146-cm.html"
+        },
+        {
+          "label": "TV 147–178 cm",
+          "url": "https://www.electrodepot.fr/tv-image-son/television/tv-de-147-a-178-cm.html"
+        },
+        {
+          "label": "Smartphones",
+          "url": "https://www.electrodepot.fr/smartphone-mobilite/smartphone-telephone/smartphone.html"
+        },
+        {
+          "label": "Consoles",
+          "url": "https://www.electrodepot.fr/informatique-gaming-tablette/console/console-de-jeux.html"
+        },
+        {
+          "label": "Écouteurs sans fil",
+          "url": "https://www.electrodepot.fr/tv-image-son/ecouteurs-casque/ecouteurs-sans-fil.html"
+        },
+        {
+          "label": "Aspirateurs robot",
+          "url": "https://www.electrodepot.fr/maison-entretien-beaute/aspirateur/aspirateur-robot.html"
+        },
+        {
+          "label": "Lave-linge hublot",
+          "url": "https://www.electrodepot.fr/gros-electromenager/lave-linge/lave-linge-hublot.html"
+        },
+        {
+          "label": "Lave-vaisselle 60 cm",
+          "url": "https://www.electrodepot.fr/gros-electromenager/lave-vaisselle/lave-vaisselle-pose-libre-60-cm.html"
+        },
+        {
+          "label": "Micro-ondes",
+          "url": "https://www.electrodepot.fr/gros-electromenager/four-micro-ondes/micro-ondes.html"
+        }
+      ],
+      "notes": "Eletrodomésticos, informática e TV a preço baixo (não tem loja em Portugal). Cerca de 25 produtos por página. As grelhas estão nas subcategorias, não nas páginas principais. Os preços vêm no formato '279€98', que a app lê desde esta versão. Filtros (?filters, /flt/) e ordenação não são usados."
+    },
+    {
+      "id": "infomax",
+      "name": "Infomax Paris",
+      "domain": "infomaxparis.com",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "ok",
+      "method": "PrestaShop (automático)",
+      "starts": [
+        {
+          "label": "Composants PC",
+          "url": "https://infomaxparis.com/fr/16-composant-pc-gamer"
+        },
+        {
+          "label": "PC gamer",
+          "url": "https://infomaxparis.com/fr/157-pc-gamer"
+        },
+        {
+          "label": "PC portables gamer",
+          "url": "https://infomaxparis.com/fr/13-pc-portable-gamer"
+        }
+      ],
+      "notes": "Loja de informática de Paris. 12 produtos por página (?page=N é permitido); ?n=, ordenação e pesquisa são proibidos."
+    },
+    {
+      "id": "chiptec",
+      "name": "Chiptec",
+      "domain": "chiptec.net",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (destaques e novidades)",
+          "url": "https://www.chiptec.net/"
+        }
+      ],
+      "notes": "A página inicial mostra cerca de 37 produtos com preço, mas as categorias devolveram erro através do Worker. O robots.txt proíbe ?p= e filtros."
+    },
+    {
+      "id": "elcorteingles",
+      "name": "El Corte Inglés",
+      "domain": "elcorteingles.pt",
+      "country": "PT",
+      "categories": [
+        "eletronica",
+        "informatica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (campanhas)",
+          "url": "https://www.elcorteingles.pt/"
+        }
+      ],
+      "notes": "Abre sem bloqueio, mas só as campanhas da página inicial trazem preço; as listas de produtos são carregadas por JavaScript."
+    },
+    {
+      "id": "1fodiscount",
+      "name": "1fodiscount",
+      "domain": "1fodiscount.com",
+      "country": "FR",
+      "categories": [
+        "informatica"
+      ],
+      "status": "partial",
+      "method": "HTML",
+      "starts": [
+        {
+          "label": "Página inicial (cerca de 60 produtos)",
+          "url": "https://www.1fodiscount.com/"
+        }
+      ],
+      "notes": "A página inicial traz cerca de 60 produtos com preço e preço antigo, mas nas categorias os preços não vêm no HTML."
+    },
+    {
+      "id": "lagranderecre",
+      "name": "La Grande Récré",
+      "domain": "lagranderecre.fr",
+      "country": "FR",
+      "categories": [
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "Abre, mas os preços chegam vazios (preenchidos por JavaScript)."
+    },
+    {
+      "id": "decathlon",
+      "name": "Decathlon",
+      "domain": "decathlon.pt",
+      "country": "PT",
+      "categories": [
+        "desporto"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "staples-pt",
+      "name": "Staples",
+      "domain": "staples.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Verificação do navegador com reCAPTCHA."
+    },
+    {
+      "id": "pccomponentes-pt",
+      "name": "PcComponentes",
+      "domain": "pccomponentes.pt",
+      "country": "PT",
+      "categories": [
+        "informatica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "intermarche-pt",
+      "name": "Intermarché",
+      "domain": "intermarche.pt",
+      "country": "PT",
+      "categories": [
+        "supermercado"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "bricomarche-pt",
+      "name": "Bricomarché",
+      "domain": "bricomarche.pt",
+      "country": "PT",
+      "categories": [
+        "bricolage"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "boulanger",
+      "name": "Boulanger",
+      "domain": "boulanger.com",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "darty",
+      "name": "Darty",
+      "domain": "darty.com",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "ubaldi",
+      "name": "Ubaldi",
+      "domain": "ubaldi.com",
+      "country": "FR",
+      "categories": [
+        "eletronica"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "cultura",
+      "name": "Cultura",
+      "domain": "cultura.com",
+      "country": "FR",
+      "categories": [
+        "livros",
+        "brinquedos"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "decitre",
+      "name": "Decitre",
+      "domain": "decitre.fr",
+      "country": "FR",
+      "categories": [
+        "livros"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "gibert",
+      "name": "Gibert",
+      "domain": "gibert.com",
+      "country": "FR",
+      "categories": [
+        "livros"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    },
+    {
+      "id": "mrbricolage",
+      "name": "Mr.Bricolage",
+      "domain": "mr-bricolage.fr",
+      "country": "FR",
+      "categories": [
+        "bricolage"
+      ],
+      "status": "blocked",
+      "notes": "Recusa pedidos vindos de servidores."
+    }
+  ]
+}

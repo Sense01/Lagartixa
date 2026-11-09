@@ -233,41 +233,19 @@ class Crawler {
 
   /* ---------- preços ---------- */
 
-  static parsePrice(raw) {
-    if (raw == null) return null;
-    if (typeof raw === 'number') return isFinite(raw) ? raw : null;
-    let s = String(raw).replace(/[^\d.,]/g, '');
-    if (!s) return null;
-    const lastDot = s.lastIndexOf('.');
-    const lastComma = s.lastIndexOf(',');
-    if (lastDot > -1 && lastComma > -1) {
-      // o separador que aparece por último é o decimal
-      const dec = lastDot > lastComma ? '.' : ',';
-      s = s.split(dec === '.' ? ',' : '.').join('').replace(dec, '.');
-    } else if (lastComma > -1) {
-      const decimals = s.length - lastComma - 1;
-      s = decimals === 3 && s.indexOf(',') === lastComma ? s.replace(',', '') : s.replace(/,/g, (m, i) => (i === lastComma ? '.' : ''));
-    } else if (lastDot > -1) {
-      const decimals = s.length - lastDot - 1;
-      if (decimals === 3 && (s.match(/\./g) || []).length >= 1 && s.length > 4) s = s.replace(/\./g, '');
-      else s = s.replace(/\.(?=.*\.)/g, '');
-    }
-    const n = parseFloat(s);
-    return isFinite(n) && n > 0 && n < 1e7 ? Math.round(n * 100) / 100 : null;
-  }
+  // um so parser de precos, partilhado com o Worker (js/extract-lite.js)
+  static parsePrice(raw) { return LiteX.parsePrice(raw); }
 
-  static PRICE_RE = /(?:€|EUR|R\$|£|\$)\s?(\d{1,3}(?:[ .  ]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)|(\d{1,3}(?:[ .  ]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s?(?:€|EUR|R\$|£|\$)/g;
-  static DISCOUNT_RE = /-\s?(\d{1,2})\s?%|(\d{1,2})\s?%\s?(?:off|de\s+(?:r[ée]duction|desconto|descuento)|remise|desconto|rabatt|sconto)/i;
+  static pricesIn(text) { return LiteX.pricesIn(text); }
 
-  static pricesIn(text) {
-    const out = [];
-    Crawler.PRICE_RE.lastIndex = 0;
-    let m;
-    while ((m = Crawler.PRICE_RE.exec(text))) {
-      const v = Crawler.parsePrice(m[1] || m[2]);
-      if (v != null) out.push(v);
-    }
-    return out;
+
+  /** 'out' | 'preorder' | 'in' | null a partir de texto ou de URL schema.org */
+  static detectAvailability(text) {
+    const t = String(text || '');
+    if (/OutOfStock|SoldOut|Discontinued|esgotad|indispon[ií]vel|sem stock|fora de stock|out of stock|sold out|rupture|[ée]puis[ée]|agotad|ausverkauft|nicht verf[üu]gbar/i.test(t)) return 'out';
+    if (/PreOrder|BackOrder|brevemente|pr[ée]-?reserva|por encomenda|sob encomenda|pre-?order|pr[ée]commande/i.test(t)) return 'preorder';
+    if (/InStock|LimitedAvailability|em stock|dispon[ií]vel|in stock|en stock|[úu]ltimos artigos|entrega em|envio em/i.test(t)) return 'in';
+    return null;
   }
 
   makeItem(raw, source, pageUrl) {
@@ -282,7 +260,11 @@ class Crawler {
     const url = raw.url ? this.normalize(raw.url, pageUrl) || pageUrl : pageUrl;
     return {
       name: (raw.name || '').replace(/\s+/g, ' ').trim(),
-      brand: (raw.brand || '').trim(),
+      brand: String(raw.brand || '').trim(),
+      ean: String(raw.ean || '').replace(/\D/g, '') || '',
+      mpn: String(raw.mpn || '').trim(),
+      sku: String(raw.sku || '').trim(),
+      availability: raw.availability || null,   // 'in' | 'out' | 'preorder' | null
       price,
       oldPrice,
       discount,
@@ -354,6 +336,10 @@ class Crawler {
               currency: inner.priceCurrency,
               url: node.url || offer.url,
               image: [].concat(node.image || [])[0]?.url || [].concat(node.image || [])[0],
+              ean: node.gtin13 || node.gtin || node.gtin12 || node.gtin14 || node.gtin8 || '',
+              mpn: node.mpn || '',
+              sku: node.sku || '',
+              availability: Crawler.detectAvailability(inner.availability || offer.availability || ''),
             },
             'json-ld',
             pageUrl
@@ -433,6 +419,7 @@ class Crawler {
           discount: dm ? dm[1] || dm[2] : null,
           url: link?.getAttribute('href'),
           image: imgSrc.startsWith('data:') ? '' : imgSrc,
+          availability: Crawler.detectAvailability(text),
         },
         'html',
         pageUrl
@@ -535,6 +522,13 @@ class Crawler {
         discount: p.has_discount && pct && /percent/i.test(p.discount_type || 'percentage') ? pct : null,
         url: p.url || p.link,
         image,
+        ean: p.ean13 || p.upc || '',
+        mpn: p.mpn || '',
+        sku: p.reference || '',
+        availability:
+          p.availability === 'unavailable' || (p.quantity != null && +p.quantity <= 0 && !p.allow_oosp) ? 'out'
+          : p.availability === 'available' || p.availability === 'last_remaining_items' ? 'in'
+          : Crawler.detectAvailability(p.availability_message || ''),
       },
       'prestashop',
       pageUrl
