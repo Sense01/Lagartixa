@@ -233,6 +233,10 @@
     }
     ok(!bad.length, `${d.sites.length} lojas válidas (ids, estados, endereços, categorias)`, bad);
     ok(d.sites.filter((s) => s.status === 'ok').length >= 10, 'pelo menos 10 lojas que funcionam');
+    const byId = new Map(d.sites.map((s) => [s.id, s]));
+    const badCol = (d.collections || []).flatMap((c) => Object.entries(c.stores).flatMap(([id, labels]) =>
+      labels.filter((l) => !byId.get(id)?.starts?.some((x) => x.label === l) || byId.get(id).status === 'blocked').map((l) => `${c.id}: ${id} / ${l}`)));
+    ok((d.collections || []).length >= 6 && !badCol.length, 'categorias: todas as lojas e páginas existem e funcionam', badCol);
     // nenhum endereço de partida usa caminhos proibidos que já conhecemos
     const forbidden = [/globaldata\.pt\/search/, /auchan\.pt\/.*(prefn|srule|pmin|pmax)/, /king-jouet\.com\/jeux-jouets\/(recherche|page[2-9])/, /materiel\.net\/(recherche|search)/, /topachat\.com\/pages\/recherche/, /ludum\.fr\/.*\?/, /almedina\.net\/.*\?/, /misterpc\.pt\/.*[?&](sort|limit|page|filter)=/, /philibertnet\.com\/.*(recherche|[?&]n=|orderby)/, /kultgames\.pt\/.*(search|orderby|[?&]n=)/, /rueducommerce\.fr\/(.*\/produits\/page|recherche)/, /chiptec\.net\/.*[?&]p=/, /espritjeu\.com\/.*filtres/, /leyaonline\.com\/(pt\/)?(loja|livrosescolares)\//, /electrodepot\.fr\/(catalog|product)\//];
     const hits = d.sites.flatMap((s) => (s.starts || []).map((x) => x.url)).filter((x) => forbidden.some((re) => re.test(x)));

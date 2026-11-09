@@ -100,7 +100,7 @@ const SiteCheck = (() => {
 })();
 
 const SiteDir = (() => {
-  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], showResale() {} };   // página de testes
+  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], showResale() {}, collectionStarts: () => [], collections: () => [] };   // página de testes
   const K_MINE = (window.STORE_PREFIX || '') + 'crawler-mysites';
   const K_CHECKS = (window.STORE_PREFIX || '') + 'crawler-sitechecks';
   const STATUS = {
@@ -123,6 +123,60 @@ const SiteDir = (() => {
     } catch (e) { console.warn('sites.json:', e); }
     fillFilters();
     render();
+    renderCollections();
+  }
+
+  /* ---------- pesquisar por categoria: varias lojas de uma vez ---------- */
+  const COL_KEY = (window.STORE_PREFIX || '') + 'crawler-colcountry';
+
+  /** paginas de partida de uma colecao (so lojas que funcionam e do pais escolhido) */
+  function collectionStarts(col, country) {
+    const byId = new Map(allSites().map((s) => [s.id, s]));
+    const out = [];
+    for (const [id, labels] of Object.entries(col.stores || {})) {
+      const s = byId.get(id);
+      if (!s || (country && s.country !== country)) continue;
+      const st = effectiveStatus(s);
+      if (!['ok', 'partial'].includes(st)) continue;
+      for (const l of labels) { const x = (s.starts || []).find((y) => y.label === l); if (x) out.push({ site: s, url: x.url, label: l }); }
+    }
+    return out;
+  }
+
+  function renderCollections() {
+    const box = $('colChips');
+    if (!box || !data.collections) return;
+    try { $('colCountry').value = localStorage.getItem(COL_KEY) || ''; } catch {}
+    const country = $('colCountry').value;
+    box.innerHTML = data.collections.map((c) => {
+      const st = collectionStarts(c, country);
+      const stores = new Set(st.map((x) => x.site.id)).size;
+      return `<button type="button" class="col-chip" data-col="${esc(c.id)}" ${stores ? '' : 'disabled'}>
+        <span>${c.icon} ${esc(c.name)}</span><small>${stores} loja${stores === 1 ? '' : 's'}</small></button>`;
+    }).join('');
+  }
+
+  function useCollection(id) {
+    const col = data.collections.find((c) => c.id === id);
+    if (!col) return;
+    const st = collectionStarts(col, $('colCountry').value);
+    if (!st.length) return toast('Nenhuma loja desta categoria no país escolhido', 3000);
+    $('sites').value = st.map((x) => x.url).join('\n');
+    if (col.keyword && !$('keywords').value.trim()) $('keywords').value = col.keyword;
+    const needSitemap = st.some((x) => x.site.sitemap);
+    if (needSitemap && $('useSitemap')) $('useSitemap').checked = true;
+    const stores = [...new Set(st.map((x) => x.site.name))];
+    // paginas suficientes para todas as lojas (pelo menos ~25 por loja)
+    if (+$('maxPages').value < stores.length * 25) $('maxPages').value = Math.min(500, stores.length * 25);
+    document.querySelectorAll('.col-chip').forEach((b) => b.classList.toggle('on', b.dataset.col === id));
+    $('colInfo').textContent = `${col.icon} ${col.name}: ${stores.length} lojas, ${st.length} páginas de partida — ${stores.join(', ')}.` +
+      (needSitemap ? ' Inclui o sitemap da Rádio Popular.' : '') + ' Escreve as palavras-chave (ou deixa vazio para ver tudo) e carrega em ▶ Iniciar.';
+    $('sites').dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  if ($('colChips')) {
+    $('colChips').addEventListener('click', (e) => { const b = e.target.closest('.col-chip'); if (b) useCollection(b.dataset.col); });
+    $('colCountry').addEventListener('change', () => { try { localStorage.setItem(COL_KEY, $('colCountry').value); } catch {} renderCollections(); });
   }
 
   function allSites() {
@@ -267,5 +321,5 @@ const SiteDir = (() => {
     $('sitesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  return { load, render, allSites, showResale };
+  return { load, render, allSites, showResale, collectionStarts, collections: () => data.collections || [] };
 })();

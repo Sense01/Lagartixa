@@ -1188,5 +1188,172 @@
       "status": "blocked",
       "notes": "Recusa pedidos vindos de servidores."
     }
+  ],
+  "collections": [
+    {
+      "id": "lego",
+      "icon": "🧱",
+      "name": "LEGO e brinquedos",
+      "keyword": "LEGO",
+      "stores": {
+        "lego-pt": [
+          "Promoções e ofertas"
+        ],
+        "lidl-pt": [
+          "Pesquisa: LEGO"
+        ],
+        "auchan-pt": [
+          "Brinquedos"
+        ],
+        "king-jouet": [
+          "LEGO — seleção de Natal"
+        ],
+        "joueclub": [
+          "Construction et maquettes (LEGO…)"
+        ]
+      }
+    },
+    {
+      "id": "pc",
+      "icon": "🖥️",
+      "name": "Componentes de PC",
+      "keyword": "",
+      "stores": {
+        "globaldata": [
+          "Componentes (toda a secção)"
+        ],
+        "coolmatica": [
+          "Componentes"
+        ],
+        "assismatica": [
+          "Componentes"
+        ],
+        "clickfiel": [
+          "Placas gráficas",
+          "Processadores"
+        ],
+        "materiel": [
+          "Placas gráficas"
+        ],
+        "infomax": [
+          "Composants PC"
+        ],
+        "rueducommerce": [
+          "Composants"
+        ]
+      }
+    },
+    {
+      "id": "portateis",
+      "icon": "💻",
+      "name": "Portáteis e monitores",
+      "keyword": "",
+      "stores": {
+        "misterpc": [
+          "Portáteis",
+          "Monitores"
+        ],
+        "clickfiel": [
+          "Monitores",
+          "Computadores"
+        ],
+        "radiopopular": [
+          "Monitores"
+        ],
+        "euronics": [
+          "Informática"
+        ],
+        "electrodepot": [
+          "PC portables"
+        ]
+      }
+    },
+    {
+      "id": "eletro",
+      "icon": "🔌",
+      "name": "Eletrodomésticos e TV",
+      "keyword": "",
+      "stores": {
+        "euronics": [
+          "Grandes domésticos",
+          "Pequenos domésticos",
+          "TV e som"
+        ],
+        "electrodepot": [
+          "TV 109–146 cm",
+          "Lave-linge hublot",
+          "Lave-vaisselle 60 cm",
+          "Micro-ondes",
+          "Aspirateurs robot"
+        ],
+        "rueducommerce": [
+          "Électroménager"
+        ]
+      }
+    },
+    {
+      "id": "jogos",
+      "icon": "🎲",
+      "name": "Jogos de tabuleiro e cartas",
+      "keyword": "",
+      "stores": {
+        "kultgames": [
+          "Jogos de tabuleiro",
+          "Cartas colecionáveis (Magic, Pokémon…)"
+        ],
+        "philibert": [
+          "Jeux de société"
+        ],
+        "ludum": [
+          "Jeux de société (página 1)"
+        ],
+        "espritjeu": [
+          "Jeux de stratégie",
+          "Jeux d'ambiance"
+        ],
+        "joueclub": [
+          "Jeux de société"
+        ]
+      }
+    },
+    {
+      "id": "livros",
+      "icon": "📚",
+      "name": "Livros",
+      "keyword": "",
+      "stores": {
+        "wook": [
+          "Página inicial (destaques e promoções)"
+        ],
+        "bertrand": [
+          "Página inicial (destaques e promoções)"
+        ],
+        "leya": [
+          "Promoções 1.º ciclo",
+          "Apoio escolar"
+        ]
+      }
+    },
+    {
+      "id": "bricolage",
+      "icon": "🔨",
+      "name": "Bricolage e jardim",
+      "keyword": "",
+      "stores": {
+        "lidl-pt": [
+          "Pesquisa: Parkside"
+        ],
+        "lidl-fr": [
+          "Promoções Bricolage & Jardinage"
+        ],
+        "maxmat": [
+          "Máquinas de jardim",
+          "Jardim (toda a secção)"
+        ],
+        "mauser": [
+          "Ferramentas"
+        ]
+      }
+    }
   ]
 }

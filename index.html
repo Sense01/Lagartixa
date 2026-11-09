@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=14">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -70,6 +70,15 @@
         <div id="searchesBar" class="searches-bar full hidden">
           <span class="sb-label">Pesquisas guardadas</span>
           <div id="savedSearches" class="saved-searches"></div>
+        </div>
+
+        <div class="collections full">
+          <div class="col-head"><span class="sb-label">Pesquisar por categoria</span>
+            <select id="colCountry" aria-label="País das lojas">
+              <option value="">🇵🇹 + 🇫🇷 Portugal e França</option><option value="PT">🇵🇹 Só Portugal</option><option value="FR">🇫🇷 Só França</option>
+            </select></div>
+          <div id="colChips" class="col-chips"></div>
+          <small id="colInfo" class="col-info"></small>
         </div>
 
         <label class="half">
@@ -293,18 +302,18 @@
     </div>
   </div>
 
-  <script src="bg.js?v=12"></script>
-  <script src="js/util.js?v=12"></script>
-  <script src="js/store.js?v=12"></script>
-  <script src="js/extract-lite.js?v=12"></script>
-  <script src="js/crawler.js?v=12"></script>
-  <script src="js/value.js?v=12"></script>
-  <script src="js/deals.js?v=12"></script>
-  <script src="js/resale.js?v=12"></script>
-  <script src="js/items.js?v=12"></script>
-  <script src="js/watch.js?v=12"></script>
-  <script src="js/monitor.js?v=12"></script>
-  <script src="js/sites.js?v=12"></script>
-  <script src="js/app.js?v=12"></script>
+  <script src="bg.js?v=14"></script>
+  <script src="js/util.js?v=14"></script>
+  <script src="js/store.js?v=14"></script>
+  <script src="js/extract-lite.js?v=14"></script>
+  <script src="js/crawler.js?v=14"></script>
+  <script src="js/value.js?v=14"></script>
+  <script src="js/deals.js?v=14"></script>
+  <script src="js/resale.js?v=14"></script>
+  <script src="js/items.js?v=14"></script>
+  <script src="js/watch.js?v=14"></script>
+  <script src="js/monitor.js?v=14"></script>
+  <script src="js/sites.js?v=14"></script>
+  <script src="js/app.js?v=14"></script>
 </body>
 </html>
