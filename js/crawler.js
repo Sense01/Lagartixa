@@ -73,6 +73,8 @@ class Crawler {
       if (!/^https?:$/.test(u.protocol)) return null;
       u.hash = '';
       if (this.opts.stripQuery) u.search = '';
+      // parametros de seguimento (Google, Facebook, campanhas) nao mudam a pagina
+      for (const k of [...u.searchParams.keys()]) if (/^(srsltid|gclid|gbraid|wbraid|fbclid|msclkid|mc_[a-z]+|utm_[a-z]+)$/i.test(k)) u.searchParams.delete(k);
       if (u.pathname.length > 1 && u.pathname.endsWith('/')) u.pathname = u.pathname.slice(0, -1);
       return u.href;
     } catch {
@@ -194,7 +196,7 @@ class Crawler {
     const flags = 'gu' + (this.opts.caseSensitive ? '' : 'i');
     const kws = [...new Set(this.opts.keywords.map((k) => k.trim()).filter(Boolean))];
     return kws.map((kw) => {
-      let src = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s\\-_]+');
+      let src = LiteX.keywordSource(kw);
       if (this.opts.wholeWord) src = `(?<![\\p{L}\\p{N}])${src}(?![\\p{L}\\p{N}])`;
       this.keywordTotals[kw] = 0;
       this.keywordPages[kw] = 0;
@@ -249,6 +251,8 @@ class Crawler {
     if (/InStock|LimitedAvailability|em stock|dispon[ií]vel|in stock|en stock|[úu]ltimos artigos|entrega em|envio em/i.test(t)) return 'in';
     return null;
   }
+
+  static LISTING_PATH = /\/(categorias?|category|categories|categorie|c|cat|collections?|marcas?|brands?|marques?|pesquisa|search|recherche|tag|tags|blog|pagina|paginas|page|pages|lojas|stores|promo[a-z]*)(\/|$)/i;
 
   makeItem(raw, source, pageUrl) {
     const price = Crawler.parsePrice(raw.price);
@@ -686,11 +690,17 @@ class Crawler {
         const { sitemaps, urls } = LiteX.parseSitemap(r.text);
         // indice: so os sub-sitemaps que parecem de produtos (paginas, categorias, blog... ficam para o fim)
         pending = LiteX.rankSitemaps([...pending, ...sitemaps.filter((x) => !done.has(x))]);
+        // se o indice tem sitemaps de produtos, os de paginas/categorias/marcas ficam de fora
+        if (pending.some((x) => /prod|item|artic/i.test(x.split('/').pop().replace(/sitemaps?/gi, '')))) {
+          pending = pending.filter((x) => !/pagin|page|categor|blog|news|post|marca|brand|video|image/i.test(x.split('/').pop().replace(/sitemaps?/gi, '')));
+        }
         // ja ha produtos: os sitemaps de paginas, categorias, blog... nao trazem mais
         if (found) pending = pending.filter((x) => !/pagin|page|categor|blog|news|post|marca|brand|video/i.test(x.split('/').pop().replace(/sitemaps?/gi, '')));
         for (const { loc, title } of urls) {
           let slug = '';
           try { slug = decodeURIComponent(new URL(loc).pathname).replace(/[-_/]+/g, ' '); } catch { continue; }
+          // paginas de lista (categorias, marcas, pesquisas) nao sao produtos: ja sao percorridas pelos links
+          if (Crawler.LISTING_PATH.test(new URL(loc).pathname)) continue;
           if (!Object.keys(this.findKeywords(`${title} ${slug}`).hits).length) continue;
           found++;
           if (this.opts.respectRobots && !this.robotsAllows(loc, rules)) continue;
@@ -815,11 +825,17 @@ class Crawler {
           for (const link of row.links) this.enqueue(link, depth + 1, url);
         } else if (product && (!r.type || r.type.includes('html'))) {
           // pagina de produto vinda do sitemap: so o produto principal (nao os relacionados)
-          const p = LiteX.productFromHtml(r.text, url);
           const parsed = this.parse(r.text, url);
+          const listing = (parsed.products || []).filter((x) => x.price != null && x.url && x.url !== url);
           delete parsed.products;
           Object.assign(row, parsed, { links: [] });
-          this.addItems(p && p.price != null ? [this.makeItem(p, 'sitemap', url)] : [], row);
+          if (listing.length >= 3) {
+            // afinal e uma pagina de lista: usar os produtos da lista, nao a pagina como se fosse um produto
+            this.addItems(listing, row);
+          } else {
+            const p = LiteX.productFromHtml(r.text, url);
+            this.addItems(p && p.price != null ? [this.makeItem(p, 'sitemap', url)] : [], row);
+          }
         } else if (!r.type || r.type.includes('html')) {
           const parsed = this.parse(r.text, url);
           const products = parsed.products;

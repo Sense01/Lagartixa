@@ -422,9 +422,21 @@ const LiteX = (() => {
 
   /* ---------- filtros (iguais aos da app) ---------- */
 
+  /** padrao de uma palavra-chave: singular e plural contam ("monitores" encontra "monitor" e vice-versa) */
+  function keywordSource(kw) {
+    const escW = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const word = (w) => {
+      if (!/^[\p{L}]{3,}$/u.test(w)) return escW(w);
+      const low = w.toLowerCase();
+      const stem = /[^aeiou]es$/.test(low) && w.length > 4 ? w.slice(0, -2) : /s$/.test(low) && w.length > 3 ? w.slice(0, -1) : w;
+      return `${escW(stem)}(?:es|s)?`;
+    };
+    return String(kw).trim().split(/\s+/).map(word).join('[\\s\\-_]+');
+  }
+
   function keywordRegexes(keywords, { wholeWord = true, caseSensitive = false } = {}) {
     return (keywords || []).map((k) => String(k).trim()).filter(Boolean).map((kw) => {
-      let src = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s\\-_]+');
+      let src = keywordSource(kw);
       if (wholeWord) src = `(?<![\\p{L}\\p{N}])${src}(?![\\p{L}\\p{N}])`;
       return { kw, re: new RegExp(src, 'u' + (caseSensitive ? '' : 'i')) };
     });
@@ -449,7 +461,7 @@ const LiteX = (() => {
     jsonLdBlocks, productsFromJsonLd, productFromHtml, listingFromHtml,
     mainMicrodata, parseSitemap, rankSitemaps, robotsSitemaps,
     isPrestaShopJson, prestaShopItems, lidlApiUrl, lidlItems,
-    keywordRegexes, matchesFilters,
+    keywordRegexes, keywordSource, matchesFilters,
   };
 })();
 

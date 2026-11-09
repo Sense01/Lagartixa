@@ -103,6 +103,17 @@
   const shop = SiteCheck.classify(R(GLOBALDATA.replace('</head>', '<script src="https://cdn.shopify.com/s/x.js"></script></head>')), u);
   ok(shop.platform === 'Shopify' && /Shopify/.test(shop.notes.join(' ')), 'plataforma Shopify identificada');
 
+  group('Palavras-chave no plural e páginas de categoria');
+  {
+    const re = (k) => LiteX.keywordRegexes([k])[0].re;
+    ok(re('Monitores').test('MONITOR LED LG') && re('monitor').test('Monitores gaming'), '"Monitores" encontra "monitor" (e vice-versa)');
+    ok(!re('Monitores').test('monitorização') && re('placa gráfica').test('placas gráficas'), 'continua a respeitar a palavra inteira; frases no plural');
+    const c = new Crawler({ startUrls: ['https://www.radiopopular.pt/'], keywords: ['Monitores'] });
+    ok(c.filterItem({ name: 'MONITOR LED LG 27U411B-B', brand: '', url: 'https://www.radiopopular.pt/produto/monitor-led-lg', price: 79.99 }) !== null, 'o crawler aceita o produto "MONITOR …" com a palavra "Monitores"');
+    ok(Crawler.LISTING_PATH.test('/categoria/monitores-3') && Crawler.LISTING_PATH.test('/marca/lg') && !Crawler.LISTING_PATH.test('/produto/monitor-led-lg'), 'sitemap: categorias e marcas não contam como produtos');
+    ok(c.normalize('https://www.radiopopular.pt/?srsltid=AYCX9v&utm_source=x&p=2') === 'https://www.radiopopular.pt/?p=2', 'parâmetros de seguimento (srsltid, utm_) removidos');
+  }
+
   group('Simulador de revenda');
   {
     const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };
