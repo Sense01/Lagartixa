@@ -27,6 +27,7 @@ function loadSettings() {
     FIELDS.forEach((f) => {
       const el = $(f);
       if (s[f] == null) return;
+      if (f === 'customProxy' && !s[f].trim()) return; // campo vazio guardado não apaga o proxy pré-configurado
       if (el.tagName === 'SELECT' && ![...el.options].some((o) => o.value === s[f])) return;
       el.value = s[f];
     });
@@ -188,18 +189,19 @@ function screenshotUrl(url) {
 
 // O mShots devolve uma imagem provisória (400×300) enquanto gera a captura: voltamos a pedir.
 function watchShot(img) {
+  const box = img.closest('.shot-thumb');
   img.addEventListener('load', () => {
     const tries = +(img.dataset.tries || 0);
     if ($('shotService').value === 'mshots' && img.naturalWidth === 400 && img.naturalHeight === 300 && tries < 8) {
       img.dataset.tries = tries + 1;
-      img.closest('.shot')?.classList.add('loading');
+      box?.classList.add('loading');
       setTimeout(() => (img.src = img.dataset.src + `&r=${Date.now()}`), 3500);
     } else {
-      img.closest('.shot')?.classList.remove('loading');
-      img.closest('.shot')?.classList.add('ready');
+      box?.classList.remove('loading');
+      box?.classList.add('ready');
     }
   });
-  img.addEventListener('error', () => img.closest('.shot')?.classList.add('failed'));
+  img.addEventListener('error', () => box?.classList.add('failed'));
 }
 
 function itemCard(it, idx) {
@@ -209,10 +211,16 @@ function itemCard(it, idx) {
   div.className = 'item';
   div.dataset.idx = idx;
   div.innerHTML = `
-    <div class="shot loading">
-      ${it.image ? `<img class="prod-img" src="${esc(it.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
-      ${shot ? `<img class="page-shot" data-src="${esc(shot)}" src="${esc(shot)}" alt="Screenshot da página do produto" loading="lazy">` : ''}
+    <div class="media ${it.image ? '' : 'no-img'}">
+      ${it.image
+        ? `<img class="prod-img" src="${esc(it.image)}" alt="${esc(it.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+        : ''}
       ${it.discount != null ? `<span class="badge">-${it.discount}%</span>` : ''}
+      ${shot ? `
+        <button type="button" class="shot-thumb loading" aria-label="Ver captura da página">
+          <img data-src="${esc(shot)}" src="${esc(shot)}" alt="" loading="lazy" decoding="async">
+          <span class="shot-label">página</span>
+        </button>` : ''}
     </div>
     <div class="item-body">
       ${it.brand ? `<div class="brand">${esc(it.brand)}</div>` : ''}
@@ -225,13 +233,32 @@ function itemCard(it, idx) {
       <div class="item-actions">
         <a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Abrir ↗</a>
         <button type="button" class="save-card">📸 Guardar</button>
-        ${shot ? `<a class="btn" href="${esc(shot)}" target="_blank" rel="noopener">Página</a>` : ''}
       </div>
     </div>`;
-  div.querySelectorAll('img.page-shot').forEach(watchShot);
-  if (!shot) div.querySelector('.shot').classList.remove('loading');
+  div.querySelectorAll('.shot-thumb img').forEach(watchShot);
+  // se a foto do produto falhar, a captura da página passa a ocupar o espaço
+  div.querySelector('.prod-img')?.addEventListener('error', (e) => {
+    e.target.remove();
+    div.querySelector('.media').classList.add('no-img');
+  });
   return div;
 }
+
+/* ---------- visualizador da captura ---------- */
+function openViewer(it, src) {
+  $('viewerImg').src = src;
+  $('viewerTitle').textContent = it.name || it.url;
+  $('viewerOpen').href = it.url;
+  $('viewer').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeViewer() {
+  $('viewer').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+$('viewerClose').addEventListener('click', closeViewer);
+$('viewer').addEventListener('click', (e) => { if (e.target.id === 'viewer') closeViewer(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') closeViewer(); });
 
 function sortedItems() {
   const list = items.map((it, i) => ({ it, i }))
@@ -264,6 +291,11 @@ function renderItemsThrottled() {
 }
 
 $('items').addEventListener('click', (e) => {
+  const thumb = e.target.closest('.shot-thumb');
+  if (thumb) {
+    const it = items[+thumb.closest('.item').dataset.idx];
+    return openViewer(it, thumb.querySelector('img').src);
+  }
   const btn = e.target.closest('.save-card');
   if (!btn) return;
   const it = items[+btn.closest('.item').dataset.idx];
@@ -322,30 +354,31 @@ async function saveItemImage(it) {
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
   const css = getComputedStyle(document.documentElement);
-  const a1 = css.getPropertyValue('--accent').trim() || '#8ab4ff';
-  const a2 = css.getPropertyValue('--accent-2').trim() || '#d58bff';
+  const a1 = css.getPropertyValue('--accent').trim() || '#f2f2f4';
+  const a2 = css.getPropertyValue('--accent-2').trim() || '#9a9aa1';
+  const onA = css.getPropertyValue('--on-accent').trim() || '#0b0b0c';
 
   // fundo: manchas de cor com a paleta atual (imitam o fundo fluido)
-  ctx.fillStyle = '#070a1c';
+  const isDark = document.documentElement.dataset.theme !== 'light';
+  const fg = (al) => (isDark ? `rgba(255,255,255,${al})` : `rgba(10,10,12,${al})`);
+  ctx.fillStyle = isDark ? '#000' : '#f2f2f4';
   ctx.fillRect(0, 0, W, H);
-  [[0.15, 0.1, a2], [0.9, 0.35, a1], [0.3, 0.95, a1], [0.85, 0.95, a2]].forEach(([fx, fy, col]) => {
-    const g = ctx.createRadialGradient(fx * W, fy * H, 0, fx * W, fy * H, W * 0.75);
-    g.addColorStop(0, col + 'cc');
-    g.addColorStop(1, col + '00');
+  [[0.1, 0.05, 0.9], [0.95, 0.6, 0.7]].forEach(([fx, fy, r]) => {
+    const g = ctx.createRadialGradient(fx * W, fy * H, 0, fx * W, fy * H, W * r);
+    g.addColorStop(0, isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   });
-  ctx.fillStyle = 'rgba(6,8,22,0.3)';
-  ctx.fillRect(0, 0, W, H);
 
   // cartão de vidro
   const r = 48, x = 60, y = 60, w = W - 120, h = H - 120;
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
-  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.75)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.strokeStyle = fg(isDark ? 0.22 : 0.1);
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
@@ -374,13 +407,11 @@ async function saveItemImage(it) {
 
   // selo de desconto
   if (it.discount != null) {
-    const g = ctx.createLinearGradient(0, 0, 260, 0);
-    g.addColorStop(0, a1); g.addColorStop(1, a2);
-    ctx.fillStyle = g;
+    ctx.fillStyle = a1;
     ctx.beginPath();
     ctx.roundRect(imgBox.x + 24, imgBox.y + 24, 230, 96, 48);
     ctx.fill();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = onA;
     ctx.font = '800 56px -apple-system, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`-${it.discount}%`, imgBox.x + 24 + 115, imgBox.y + 24 + 68);
@@ -391,12 +422,12 @@ async function saveItemImage(it) {
   let ty = imgBox.y + imgBox.h + 80;
   const tx = x + 50, tw = w - 100;
   if (it.brand) {
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillStyle = fg(0.6);
     ctx.font = '600 34px -apple-system, system-ui, sans-serif';
     ctx.fillText(it.brand.toUpperCase(), tx, ty);
     ty += 60;
   }
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = fg(0.95);
   ctx.font = '700 50px -apple-system, system-ui, sans-serif';
   for (const line of wrapText(ctx, it.name || 'Sem nome', tw, 3)) {
     ctx.fillText(line, tx, ty);
@@ -409,7 +440,7 @@ async function saveItemImage(it) {
   if (it.oldPrice != null) {
     const pw = ctx.measureText(priceTxt).width;
     ctx.font = '500 48px -apple-system, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillStyle = fg(0.5);
     const old = fmtPrice(it.oldPrice, it.currency);
     const ox = tx + pw + 30;
     ctx.fillText(old, ox, ty);
@@ -418,7 +449,7 @@ async function saveItemImage(it) {
   }
 
   // rodapé
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillStyle = fg(0.45);
   ctx.font = '400 26px -apple-system, system-ui, sans-serif';
   let host = '';
   try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}

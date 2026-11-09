@@ -16,7 +16,7 @@ Crawler que corre inteiramente no browser — HTML, CSS e JavaScript puros, sem 
 - **Notificação quando termina** + som + vibração + número no ícone da app.
 - **Proxies com troca automática**: se um proxy falhar, tenta o seguinte. Suporta o teu próprio proxy (ver `worker/`).
 - Exportação: JSON (páginas + produtos), CSV de páginas, CSV de produtos.
-- Fundo fluido animado, interface em vidro, 4 paletas de cor, ícone para iPhone.
+- Fundo fluido animado com linhas de fluxo, interface em vidro, modo escuro/claro (segue o sistema até escolheres), ícone para iPhone.
 - Link com parâmetros: `?site=lidl.fr&kw=parkside&max=150&desc=20`
 
 ## Publicar no GitHub Pages
@@ -48,7 +48,7 @@ cria o teu proxy grátis no Cloudflare — instruções em [`worker/README.md`](
 |---|---|
 | `index.html` | Interface |
 | `style.css` | Estilos (vidro, animações, responsivo) |
-| `bg.js` | Fundo fluido animado (WebGL, com fallback em CSS) e paletas de cor |
+| `bg.js` | Fundo fluido com linhas de fluxo (WebGL, com fallback em CSS) e modo escuro/claro |
 | `crawler.js` | Motor: fila, proxies, robots.txt, extração de produtos/preços, API do Lidl |
 | `app.js` | Interface, galeria de produtos, screenshots, notificações, exportação |
 | `sw.js` | Service worker (necessário para notificações) |

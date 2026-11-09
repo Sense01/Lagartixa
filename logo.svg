@@ -1,33 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1b2a6b"/>
-      <stop offset="1" stop-color="#0a0f24"/>
-    </linearGradient>
-    <radialGradient id="glass" cx="0.4" cy="0.35" r="0.75">
-      <stop offset="0" stop-color="#4f8cff" stop-opacity="0.35"/>
-      <stop offset="1" stop-color="#4f8cff" stop-opacity="0.05"/>
+    <radialGradient id="bg" cx="0.3" cy="0.15" r="1.1">
+      <stop offset="0" stop-color="#2a2a2e"/>
+      <stop offset="0.55" stop-color="#0b0b0c"/>
+      <stop offset="1" stop-color="#000"/>
     </radialGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="300" y1="150" x2="620" y2="880">
       <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#b9c8ff"/>
+      <stop offset="1" stop-color="#d4d4d8"/>
     </linearGradient>
-    <clipPath id="lens"><circle cx="450" cy="450" r="270"/></clipPath>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
-  <!-- cabo -->
-  <line x1="641" y1="641" x2="840" y2="840" stroke="#0a0f24" stroke-opacity="0.45" stroke-width="130" transform="translate(10,14)"/><circle cx="850" cy="854" r="65" fill="#0a0f24" fill-opacity="0.45"/>
-  <line x1="641" y1="641" x2="840" y2="840" stroke="url(#rim)" stroke-width="120"/><circle cx="840" cy="840" r="60" fill="#c9d5ff"/>
-  <!-- vidro + teia -->
-  <circle cx="450" cy="450" r="270" fill="url(#glass)"/>
-  <g clip-path="url(#lens)" fill="none" stroke="#7fb2ff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="450" y1="450" x2="450.0" y2="210.0"/><line x1="450" y1="450" x2="619.7" y2="280.3"/><line x1="450" y1="450" x2="690.0" y2="450.0"/><line x1="450" y1="450" x2="619.7" y2="619.7"/><line x1="450" y1="450" x2="450.0" y2="690.0"/><line x1="450" y1="450" x2="280.3" y2="619.7"/><line x1="450" y1="450" x2="210.0" y2="450.0"/><line x1="450" y1="450" x2="280.3" y2="280.3"/><path d="M450.0,380.0 Q472.0,397.0 499.5,400.5 Q503.0,428.0 520.0,450.0 Q503.0,472.0 499.5,499.5 Q472.0,503.0 450.0,520.0 Q428.0,503.0 400.5,499.5 Q397.0,472.0 380.0,450.0 Q397.0,428.0 400.5,400.5 Q428.0,397.0 450.0,380.0 Z"/><path d="M450.0,315.0 Q492.4,347.7 545.5,354.5 Q552.3,407.6 585.0,450.0 Q552.3,492.4 545.5,545.5 Q492.4,552.3 450.0,585.0 Q407.6,552.3 354.5,545.5 Q347.7,492.4 315.0,450.0 Q347.7,407.6 354.5,354.5 Q407.6,347.7 450.0,315.0 Z"/><path d="M450.0,250.0 Q512.8,298.5 591.4,308.6 Q601.5,387.2 650.0,450.0 Q601.5,512.8 591.4,591.4 Q512.8,601.5 450.0,650.0 Q387.2,601.5 308.6,591.4 Q298.5,512.8 250.0,450.0 Q298.5,387.2 308.6,308.6 Q387.2,298.5 450.0,250.0 Z"/>
+  <g fill="none" stroke="url(#ink)" stroke-width="24" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="6">
+        <path d="M346.8,271.2 L355.2,467.2 L512.0,575.0"/>
+    <path d="M677.2,271.2 L668.8,467.2 L512.0,575.0"/>
+    <path d="M435.0,164.8 L388.8,226.4 L408.4,388.8 L512.0,575.0"/>
+    <path d="M589.0,164.8 L635.2,226.4 L615.6,388.8 L512.0,575.0"/>
+    <path d="M481.2,458.8 L512.0,512.0 L542.8,458.8"/>
+    <path d="M365.0,582.0 L369.2,766.8 L402.8,859.2"/>
+    <path d="M659.0,582.0 L654.8,766.8 L621.2,859.2"/>
+    <path d="M512.0,575.0 L421.0,654.8 L425.2,778.0 L444.8,859.2"/>
+    <path d="M512.0,575.0 L603.0,654.8 L598.8,778.0 L579.2,859.2"/>
+    <path d="M365.0,582.0 L659.0,582.0"/>
+    <path d="M512.0,621.2 L556.8,666.0 L559.6,761.2 L531.6,806.0 L492.4,806.0 L464.4,761.2 L467.2,666.0 Z"/>
   </g>
-  <!-- nó central -->
-  <circle cx="450" cy="450" r="34" fill="#3ee0c8"/>
-  <circle cx="450" cy="450" r="58" fill="none" stroke="#3ee0c8" stroke-opacity="0.35" stroke-width="10"/>
-  <!-- aro -->
-  <circle cx="450" cy="450" r="270" fill="none" stroke="url(#rim)" stroke-width="60"/>
-  <!-- reflexo -->
-  <path d="M270,330 A215,215 0 0 1 360,255" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="22" stroke-linecap="round"/>
 </svg>

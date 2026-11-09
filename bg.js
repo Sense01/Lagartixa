@@ -1,50 +1,62 @@
 /**
- * Fundo "vivo": gradiente fluido animado em WebGL (ruído com domain warping).
- * Renderiza numa resolução reduzida (é suave por natureza) para poupar bateria.
- * Sem WebGL → fica o fallback em CSS (.blobs).
+ * Fundo "seda líquida": fitas brilhantes que se dobram e fluem devagar.
+ * A superfície é um campo de alturas animado; a luz (difusa + reflexo especular)
+ * dá o aspeto de seda/vidro preto. Modo claro = exatamente o inverso.
+ * Sem WebGL → fallback em CSS (.blobs).
  */
 (() => {
-  const PALETTES = {
-    aurora: ['#060816', '#3a1fd1', '#16b8ff', '#c03cff', '#ff7ac8'],
-    sunset: ['#12060f', '#d1361f', '#ff9f43', '#b5179e', '#ffd166'],
-    ocean:  ['#020c14', '#0a4bd6', '#00d4c8', '#3a7bff', '#9bf6ff'],
-    mint:   ['#04120c', '#0f8a5f', '#3ef0a0', '#1e6bff', '#d6ff7a'],
-  };
-
+  const META = { dark: '#000000', light: '#f2f2f4' };
+  const root = document.documentElement;
   const canvas = document.getElementById('bg');
-  const gl = canvas && (canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' }));
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  let darkTarget = 1;
+  let darkShown = null;
+  let redraw = () => {};
 
-  function setPalette(name) {
-    const p = PALETTES[name] ? name : 'aurora';
-    document.documentElement.dataset.palette = p;
-    document.querySelectorAll('.palette button').forEach((b) => b.classList.toggle('active', b.dataset.p === p));
-    try { localStorage.setItem('crawler-palette', p); } catch {}
-    current = PALETTES[p].map(hex);
-    if (reduceMotion) draw(performance.now());
+  function initialTheme() {
+    let saved;
+    try { saved = localStorage.getItem('crawler-theme'); } catch {}
+    if (saved === 'dark' || saved === 'light') return saved;
+    return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
 
-  let current = PALETTES.aurora.map(hex);
-  let shown = current.map((c) => c.slice()); // cores interpoladas (transição suave)
+  function setTheme(name, save = true) {
+    const t = name === 'light' ? 'light' : 'dark';
+    root.dataset.theme = t;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', META[t]);
+    const btn = document.getElementById('themeToggle');
+    if (btn) {
+      btn.setAttribute('aria-pressed', t === 'light');
+      btn.title = t === 'light' ? 'Mudar para modo escuro' : 'Mudar para modo claro';
+    }
+    if (save) try { localStorage.setItem('crawler-theme', t); } catch {}
+    darkTarget = t === 'dark' ? 1 : 0;
+    if (darkShown == null) darkShown = darkTarget;
+    redraw();
+  }
 
-  document.querySelectorAll('.palette button').forEach((b) =>
-    b.addEventListener('click', () => setPalette(b.dataset.p))
+  document.getElementById('themeToggle')?.addEventListener('click', () =>
+    setTheme(root.dataset.theme === 'light' ? 'dark' : 'light')
   );
+  matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', (e) => {
+    let saved; try { saved = localStorage.getItem('crawler-theme'); } catch {}
+    if (!saved) setTheme(e.matches ? 'light' : 'dark', false);
+  });
 
+  const gl = canvas && canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
   if (!gl) {
-    document.documentElement.classList.add('no-webgl');
-    let saved; try { saved = localStorage.getItem('crawler-palette'); } catch {}
-    setPalette(saved);
+    root.classList.add('no-webgl');
+    setTheme(initialTheme(), false);
     return;
   }
+  const hasDeriv = !!gl.getExtension('OES_standard_derivatives');
 
   const vert = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
   const frag = `
-    precision mediump float;
-    uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse;
-    uniform vec3 c0; uniform vec3 c1; uniform vec3 c2; uniform vec3 c3; uniform vec3 c4;
+    ${hasDeriv ? '#extension GL_OES_standard_derivatives : enable\n#define HAS_DERIV 1' : ''}
+    precision highp float;
+    uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse; uniform float uDark;
 
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float noise(vec2 p){
@@ -56,30 +68,60 @@
     float fbm(vec2 p){
       float v = 0.0, a = 0.5;
       mat2 R = mat2(0.8, 0.6, -0.6, 0.8);
-      for (int i = 0; i < 5; i++){ v += a * noise(p); p = R * p * 2.0 + 0.17; a *= 0.5; }
+      for (int i = 0; i < 4; i++){ v += a * noise(p); p = R * p * 2.0 + 0.17; a *= 0.5; }
       return v;
     }
+
+    // coordenada "ao longo" das fitas: diagonais largas, curvadas por ruído lento
+    float ribbonCoord(vec2 p, float t){
+      vec2 q = p + 0.5 * vec2(fbm(p * 0.6 + vec2(0.0, t)), fbm(p * 0.6 + vec2(4.7, -t))) - 0.25;
+      q += uMouse * 0.05;
+      float across = dot(q, vec2(-0.5, 0.86));
+      float bend = fbm(q * 0.5 + vec2(t * 0.5, -t * 0.3)) * 2.6;
+      return across * 3.4 + bend * 1.3 + sin(dot(q, vec2(0.86, 0.5)) * 1.6 + t * 1.3) * 0.45 + t * 0.6;
+    }
+
     void main(){
       vec2 uv = gl_FragCoord.xy / uRes;
-      vec2 p = uv * vec2(uRes.x / uRes.y, 1.0) * 1.4;
-      float t = uTime * 0.045;
+      vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y * 1.5;
+      float t = uTime * 0.05;
 
-      vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, 1.3) - t));
-      vec2 w = vec2(fbm(p + 3.0 * q + vec2(1.7, 9.2) + t * 1.4 + uMouse * 0.35),
-                    fbm(p + 3.0 * q + vec2(8.3, 2.8) - t * 1.1));
-      float f = fbm(p + 3.2 * w);
+      float s = ribbonCoord(p, t);
+      #ifdef HAS_DERIV
+        vec2 gs = vec2(dFdx(s), dFdy(s)) * uRes.y / 1.5;
+      #else
+        float e = 1.5 / uRes.y;
+        vec2 gs = vec2(ribbonCoord(p + vec2(e, 0.0), t) - s, ribbonCoord(p + vec2(0.0, e), t) - s) / e;
+      #endif
 
-      vec3 col = c0;
-      col = mix(col, c1, smoothstep(0.25, 0.85, f));
-      col = mix(col, c2, smoothstep(0.35, 1.0, length(q)) * 0.75);
-      col = mix(col, c3, smoothstep(0.45, 0.95, w.x) * 0.65);
-      col = mix(col, c4, smoothstep(0.7, 1.0, f * w.y * 1.6) * 0.55);
+      // cada fita é um "tubo" de seda: perfil arredondado, vinco escuro entre fitas
+      float band = floor(s);
+      float x = fract(s) * 2.0 - 1.0;
+      float prof = sqrt(max(1.0 - x * x, 0.0));
+      float amp = 0.55 + 0.45 * hash(vec2(band, 3.1));        // fitas com relevos diferentes
+      float dhds = -x / sqrt(1.0 - x * x + 0.04) * amp;
+      vec2 g = dhds * gs * 0.22;
+      vec3 N = normalize(vec3(-g, 1.0));
 
-      // vinheta + escurecer ligeiramente para o texto se ler bem
-      float v = smoothstep(1.25, 0.25, length(uv - 0.5));
-      col = mix(c0, col, 0.35 + 0.65 * v) * 0.88;
-      // dithering para evitar "banding"
-      col += (hash(gl_FragCoord.xy + uTime) - 0.5) / 255.0;
+      vec3 L = normalize(vec3(-0.5, 0.7, 0.55));
+      vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+      float ndh = max(dot(N, H), 0.0);
+      float diff = max(dot(N, L), 0.0);
+      float spec = pow(ndh, 80.0);          // reflexo fino e intenso
+      float sheen = pow(ndh, 10.0);         // brilho largo
+      float fres = pow(1.0 - N.z, 3.0);     // borda das fitas
+
+      float shade = 0.01 + 0.07 * diff * diff + 0.75 * spec + 0.22 * sheen + 0.35 * fres;
+      shade *= mix(0.25, 1.0, smoothstep(0.0, 0.45, prof));     // vinco escuro entre fitas
+      shade *= 0.6 + 0.4 * hash(vec2(band, 7.7));                // umas fitas mais claras que outras
+      float vig = smoothstep(1.4, 0.2, length(uv - vec2(0.5, 0.6)));
+      shade *= 0.45 + 0.55 * vig;
+      shade = clamp(shade, 0.0, 1.0);
+
+      vec3 darkCol = vec3(shade) * vec3(0.97, 0.98, 1.02);
+      vec3 lightCol = vec3(1.0) - vec3(shade) * 0.82 * vec3(1.02, 1.01, 0.98) - 0.03;  // o inverso
+      vec3 col = mix(lightCol, darkCol, uDark);
+      col += (hash(gl_FragCoord.xy + uTime) - 0.5) / 255.0;   // dithering (evita "degraus")
       gl_FragColor = vec4(col, 1.0);
     }`;
 
@@ -100,7 +142,8 @@
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
   } catch (e) {
     console.warn('Fundo WebGL indisponível:', e);
-    document.documentElement.classList.add('no-webgl');
+    root.classList.add('no-webgl');
+    setTheme(initialTheme(), false);
     return;
   }
   gl.useProgram(prog);
@@ -113,12 +156,12 @@
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
   const U = {};
-  ['uRes', 'uTime', 'uMouse', 'c0', 'c1', 'c2', 'c3', 'c4'].forEach((n) => (U[n] = gl.getUniformLocation(prog, n)));
+  ['uRes', 'uTime', 'uMouse', 'uDark'].forEach((n) => (U[n] = gl.getUniformLocation(prog, n)));
 
-  const SCALE = 0.35; // fração da resolução do ecrã
   function resize() {
-    const w = Math.max(1, Math.round(innerWidth * SCALE));
-    const h = Math.max(1, Math.round(innerHeight * SCALE));
+    const scale = Math.min(window.devicePixelRatio || 1, 2) * (innerWidth > 1400 ? 0.5 : 0.65);
+    const w = Math.max(1, Math.round(innerWidth * scale));
+    const h = Math.max(1, Math.round(innerHeight * scale));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
@@ -126,45 +169,47 @@
     }
   }
 
-  // o rato/dedo "empurra" o fluido suavemente
   const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
   addEventListener('pointermove', (e) => {
     mouse.tx = (e.clientX / innerWidth - 0.5) * 2;
     mouse.ty = (0.5 - e.clientY / innerHeight) * 2;
   }, { passive: true });
 
-  function draw(now) {
+  let prevNow = 0;
+  function draw(now, k) {
     resize();
-    for (let i = 0; i < 5; i++)
-      for (let k = 0; k < 3; k++) shown[i][k] += (current[i][k] - shown[i][k]) * 0.04;
+    // transição pelo tempo (~0,6 s), igual em qualquer aparelho
+    const dt = prevNow ? Math.min((now - prevNow) / 1000, 0.25) : 1;
+    prevNow = now;
+    darkShown += (darkTarget - darkShown) * (k ?? 1 - Math.exp(-dt * 6));
     mouse.x += (mouse.tx - mouse.x) * 0.03;
     mouse.y += (mouse.ty - mouse.y) * 0.03;
-
     gl.uniform2f(U.uRes, canvas.width, canvas.height);
-    gl.uniform1f(U.uTime, reduceMotion ? 20 : now / 1000);
+    gl.uniform1f(U.uTime, reduceMotion ? 40 : now / 1000);
     gl.uniform2f(U.uMouse, mouse.x, mouse.y);
-    ['c0', 'c1', 'c2', 'c3', 'c4'].forEach((n, i) => gl.uniform3fv(U[n], shown[i]));
+    gl.uniform1f(U.uDark, darkShown);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  let raf = 0;
-  function loop(now) {
-    draw(now);
-    raf = requestAnimationFrame(loop);
-  }
-
-  let saved; try { saved = localStorage.getItem('crawler-palette'); } catch {}
-  setPalette(saved);
-  shown = current.map((c) => c.slice());
+  setTheme(initialTheme(), false);
 
   if (reduceMotion) {
-    draw(0);
-    addEventListener('resize', () => draw(0));
-  } else {
-    raf = requestAnimationFrame(loop);
-    document.addEventListener('visibilitychange', () => {
-      cancelAnimationFrame(raf);
-      if (!document.hidden) raf = requestAnimationFrame(loop);
-    });
+    redraw = () => draw(0, 1);
+    redraw();
+    addEventListener('resize', redraw);
+    return;
   }
+
+  let raf = 0, last = 0;
+  function loop(now) {
+    raf = requestAnimationFrame(loop);
+    if (now - last < 22) return;   // ~45 fps
+    last = now;
+    draw(now);
+  }
+  raf = requestAnimationFrame(loop);
+  document.addEventListener('visibilitychange', () => {
+    cancelAnimationFrame(raf);
+    if (!document.hidden) raf = requestAnimationFrame(loop);
+  });
 })();

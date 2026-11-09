@@ -112,13 +112,18 @@ class Crawler {
    */
   async fetchText(url, { timeout = this.opts.timeout, maxTries = this.proxies.length } = {}) {
     const failures = [];
+    let lastResponse = null;
     const list = this.proxies.slice(0, Math.max(1, maxTries));
     for (const p of list) {
       if (!this.running) throw new DOMException('Cancelado', 'AbortError');
       try {
         const r = await this.fetchOnce(url, p.tpl, timeout);
-        if (r.status === 429 || r.status >= 500 || r.status === 0) {
+        r.proxy = p.name;
+        // 401/403/407: proxy a pedir chave ou site a bloquear o IP do proxy → tenta o seguinte
+        if ([0, 401, 403, 407, 408, 429].includes(r.status) || r.status >= 500) {
           failures.push(`${p.name}: HTTP ${r.status}`);
+          this.onLog(`Proxy ${p.name} respondeu HTTP ${r.status} — a tentar o seguinte`);
+          lastResponse = r;
           continue;
         }
         // sucesso: este proxy passa a ser o primeiro
@@ -135,9 +140,32 @@ class Crawler {
         failures.push(`${p.name}: ${e.name === 'AbortError' || e === 'timeout' ? 'sem resposta' : e.message}`);
       }
     }
+    if (lastResponse && list.length === 1) return lastResponse;
     const err = new Error(`Todos os proxies falharam (${failures.join('; ')})`);
     err.proxyFailure = true;
     throw err;
+  }
+
+  /** Deteta páginas de captcha / anti-bot que chegam em vez do conteúdo real. */
+  static detectBlock(r) {
+    const head = (r.text || '').slice(0, 20000);
+    const patterns = [
+      /Robot Check|validateCaptcha|api-services-support@amazon|opfcaptcha/i,
+      /cf-chl-|challenge-platform|Just a moment\.\.\.|Attention Required! \| Cloudflare/i,
+      /Access Denied[\s\S]{0,400}(Reference|errors\.edgesuite)/i,
+      /Pardon Our Interruption|px-captcha|_Incapsula_Resource|datadome|geo\.captcha-delivery/i,
+      /are you a (human|robot)|confirm you are human|verify you are human/i,
+    ];
+    if (patterns.some((re) => re.test(head))) {
+      return `O site mostrou uma verificação anti-robô (captcha) em vez da página — este site bloqueia acesso automático`;
+    }
+    if (r.status === 403 || r.status === 401) {
+      return `Acesso recusado (HTTP ${r.status}) — este site bloqueia acesso automático a partir de servidores`;
+    }
+    if (r.status === 203) {
+      return `HTTP 203: a resposta foi substituída a caminho (normalmente uma página anti-robô) — este site bloqueia acesso automático`;
+    }
+    return null;
   }
 
   /* ---------- palavras-chave ---------- */
@@ -394,7 +422,7 @@ class Crawler {
       const r = await this.fetchText(this.lidlApiUrl(row.url, offset, size));
       ms += r.ms;
       row.status = r.status;
-      if (!r.ok) throw new Error(`API do Lidl respondeu HTTP ${r.status}`);
+      if (!r.ok) throw new Error(`API do Lidl respondeu HTTP ${r.status} (via ${r.proxy})`);
       let json;
       try { json = JSON.parse(r.text); } catch { throw new Error('A API do Lidl não devolveu JSON (o proxy pode ter sido bloqueado)'); }
       total = json.numFound ?? 0;
@@ -610,7 +638,12 @@ class Crawler {
         row.ms = r.ms;
         row.contentType = r.type;
 
-        if (!r.ok) {
+        const block = Crawler.detectBlock(r);
+        if (block) {
+          row.error = block;
+          row.status = `bloqueado (${r.status})`;
+          this.errors++;
+        } else if (!r.ok) {
           row.error = `HTTP ${r.status}`;
           this.errors++;
         } else if (!r.type || r.type.includes('html')) {
