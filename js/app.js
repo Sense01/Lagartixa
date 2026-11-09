@@ -379,7 +379,7 @@ $('exportItems').addEventListener('click', () => {
 
 /* ---------- arranque ---------- */
 loadSettings();
-['itemSort', 'onlyGood', 'hideOut', 'onlyDrops'].forEach((id) => $(id).addEventListener('change', saveSettings));
+['itemSort', 'onlyGood', 'hideOut', 'onlyDrops', 'proxy', 'customProxy'].forEach((id) => $(id).addEventListener('change', saveSettings));
 renderSearches();
 renderWatch();
 SiteDir.load();
