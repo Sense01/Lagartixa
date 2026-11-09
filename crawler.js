@@ -141,8 +141,16 @@ class Crawler {
       }
     }
     if (lastResponse && list.length === 1) return lastResponse;
-    const err = new Error(`Todos os proxies falharam (${failures.join('; ')})`);
-    err.proxyFailure = true;
+    // se o proxy próprio chegou ao site e levou 401/403, é o site que bloqueia — não o proxy
+    const ownBlocked = failures.some((f) => /^o meu proxy: HTTP 40[13]/.test(f));
+    const err = new Error(
+      ownBlocked
+        ? 'Este site bloqueia acesso automático (o teu proxy chegou ao site e recebeu "acesso recusado")'
+        : `Todos os proxies falharam (${failures.join('; ')})`
+    );
+    err.proxyFailure = !ownBlocked;
+    err.siteBlocked = ownBlocked;
+    err.details = failures.join('; ');
     throw err;
   }
 
@@ -458,6 +466,34 @@ class Crawler {
     this.addItems(products, row);
   }
 
+  /* ---------- PrestaShop (resposta JSON da listagem) ---------- */
+
+  static isPrestaShopJson(r) {
+    if (!/json/i.test(r.type || '') && !/^\s*\{/.test(r.text || '')) return false;
+    return /"rendered_products"|"rendered_products_top"/.test((r.text || '').slice(0, 5000));
+  }
+
+  prestaShopItem(p, pageUrl) {
+    if (!p || typeof p !== 'object') return null;
+    const cover = p.cover || p.default_image || {};
+    const image =
+      cover.bySize?.home_default?.url || cover.medium?.url || cover.large?.url || cover.small?.url || '';
+    const pct = String(p.discount_percentage_absolute || p.discount_percentage || '').replace(/[^\d.,]/g, '');
+    return this.makeItem(
+      {
+        name: p.name,
+        brand: p.manufacturer_name || '',
+        price: p.price_amount ?? p.price,
+        oldPrice: p.has_discount ? p.regular_price_amount ?? p.regular_price : null,
+        discount: p.has_discount && pct && /percent/i.test(p.discount_type || 'percentage') ? pct : null,
+        url: p.url || p.link,
+        image,
+      },
+      'prestashop',
+      pageUrl
+    );
+  }
+
   /* ---------- robots.txt ---------- */
 
   async loadRobots(origin) {
@@ -646,6 +682,20 @@ class Crawler {
         } else if (!r.ok) {
           row.error = `HTTP ${r.status}`;
           this.errors++;
+        } else if (Crawler.isPrestaShopJson(r)) {
+          // lojas PrestaShop respondem em JSON quando o pedido aceita JSON: lista de produtos já estruturada
+          const j = JSON.parse(r.text);
+          const html = ['rendered_products_top', 'rendered_products', 'rendered_products_bottom', 'rendered_facets']
+            .map((k) => j[k] || '').join('\n');
+          const parsed = this.parse(
+            `<html><head><title>${String(j.label || '').replace(/</g, '')}</title></head><body>${html}</body></html>`, url);
+          const fromJson = (j.products || []).map((p) => this.prestaShopItem(p, url)).filter(Boolean);
+          const products = fromJson.length ? fromJson : parsed.products;
+          delete parsed.products;
+          Object.assign(row, parsed);
+          if (!row.title) row.title = `PrestaShop — ${products.length} produtos`;
+          this.addItems(products, row);
+          for (const link of row.links) this.enqueue(link, depth + 1, url);
         } else if (!r.type || r.type.includes('html')) {
           const parsed = this.parse(r.text, url);
           const products = parsed.products;
@@ -660,7 +710,10 @@ class Crawler {
     } catch (e) {
       row.status = 'erro';
       row.error = e.name === 'AbortError' ? (this.running ? 'Timeout' : 'Cancelado') : e.message;
-      if (e.proxyFailure) {
+      if (e.siteBlocked) {
+        row.status = 'bloqueado';
+        this.onLog(`Detalhe: ${e.details}`);
+      } else if (e.proxyFailure) {
         row.error += ' — o site pode estar a bloquear proxies públicos; experimenta o teu próprio proxy (ver worker/README.md)';
       }
       this.errors++;
