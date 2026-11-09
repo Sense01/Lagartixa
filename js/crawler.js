@@ -254,11 +254,23 @@ class Crawler {
 
   static LISTING_PATH = /\/(categorias?|category|categories|categorie|c|cat|collections?|marcas?|brands?|marques?|pesquisa|search|recherche|tag|tags|blog|pagina|paginas|page|pages|lojas|stores|promo[a-z]*)(\/|$)/i;
 
+  /** descarta "falsos produtos": blocos que levam a uma categoria/campanha ou sem nome a serio (ex. '24"') */
+  static looksLikeProduct(it) {
+    if (it.source === 'html' || it.source === 'sitemap') {
+      try { if (Crawler.LISTING_PATH.test(new URL(it.url).pathname)) return false; } catch {}
+      if (!/\p{L}{3,}/u.test(it.name || '')) return false;
+    }
+    return true;
+  }
+
   makeItem(raw, source, pageUrl) {
     const price = Crawler.parsePrice(raw.price);
     let oldPrice = Crawler.parsePrice(raw.oldPrice);
     if (oldPrice != null && price != null && oldPrice <= price) oldPrice = null;
+    // "preco antigo" 5x maior que o atual quase sempre e outro numero da pagina (filtro de precos, outro produto)
+    if (oldPrice != null && price != null && oldPrice > price * 5) oldPrice = null;
     let discount = raw.discount != null ? Math.abs(parseFloat(raw.discount)) : null;
+    if (discount != null && (discount >= 90 || discount <= 0)) discount = null;
     if ((discount == null || !isFinite(discount)) && price != null && oldPrice != null) {
       discount = Math.round(((oldPrice - price) / oldPrice) * 100);
     }
@@ -303,6 +315,7 @@ class Crawler {
     row.items = [];
     for (const it of items) {
       if (!it.name && it.price == null) continue;
+      if (!Crawler.looksLikeProduct(it)) continue;
       this.productsSeen++;
       const hits = this.filterItem(it);
       if (!hits) continue;
@@ -826,15 +839,16 @@ class Crawler {
         } else if (product && (!r.type || r.type.includes('html'))) {
           // pagina de produto vinda do sitemap: so o produto principal (nao os relacionados)
           const parsed = this.parse(r.text, url);
-          const listing = (parsed.products || []).filter((x) => x.price != null && x.url && x.url !== url);
           delete parsed.products;
           Object.assign(row, parsed, { links: [] });
-          if (listing.length >= 3) {
-            // afinal e uma pagina de lista: usar os produtos da lista, nao a pagina como se fosse um produto
-            this.addItems(listing, row);
+          // pagina de produto: so o produto principal. Os "relacionados", filtros e campanhas da pagina ficam de fora.
+          const p = LiteX.productFromHtml(r.text, url);
+          if (p && p.price != null && p.name) {
+            this.addItems([this.makeItem(p, 'sitemap', url)], row);
           } else {
-            const p = LiteX.productFromHtml(r.text, url);
-            this.addItems(p && p.price != null ? [this.makeItem(p, 'sitemap', url)] : [], row);
+            // afinal e uma pagina de lista: so com o extrator rigoroso (cartoes completos com nome, link e preco)
+            const lite = LiteX.listingFromHtml(r.text, url).map((x) => this.makeItem(x, 'html', url)).filter((x) => x.url !== url);
+            this.addItems(lite.length >= 3 ? lite : [], row);
           }
         } else if (!r.type || r.type.includes('html')) {
           const parsed = this.parse(r.text, url);

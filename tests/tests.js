@@ -114,6 +114,18 @@
     ok(c.normalize('https://www.radiopopular.pt/?srsltid=AYCX9v&utm_source=x&p=2') === 'https://www.radiopopular.pt/?p=2', 'parâmetros de seguimento (srsltid, utm_) removidos');
   }
 
+  group('Falsos produtos e preços impossíveis');
+  {
+    const c = new Crawler({ startUrls: ['https://www.radiopopular.pt/'] });
+    const a = c.makeItem({ name: 'Cartão RP ON', price: '8.99', oldPrice: '1500', url: '/pagina/cartao' }, 'html', 'https://www.radiopopular.pt/');
+    ok(a.oldPrice == null && a.discount == null, '"preço antigo" 1500 € para 8,99 € é descartado (nada de -99%)');
+    ok(!Crawler.looksLikeProduct(a), 'bloco que leva a /pagina/… não é um produto');
+    const b = c.makeItem({ name: '24"', price: '20', url: '/categoria/monitores-24' }, 'html', 'https://www.radiopopular.pt/');
+    ok(!Crawler.looksLikeProduct(b), 'filtro "24\\"" que leva a uma categoria não é um produto');
+    const g = c.makeItem({ name: 'MONITOR LED LG 27U411B-B', price: '79.99', oldPrice: '109.99', url: '/produto/monitor-led-lg' }, 'html', 'https://www.radiopopular.pt/');
+    ok(Crawler.looksLikeProduct(g) && g.discount === 27, 'produto verdadeiro continua (-27%)');
+  }
+
   group('Simulador de revenda');
   {
     const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };
