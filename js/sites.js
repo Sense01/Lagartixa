@@ -238,11 +238,16 @@ const SiteDir = (() => {
       return (!q || `${s.name} ${s.domain} ${s.notes || ''}`.toLowerCase().includes(q)) &&
         (!cat || (s.categories || []).includes(cat)) &&
         (!country || s.country === country) &&
-        (!status || (status === 'resale' ? s.resale && st === 'ok' : status === 'blocked' ? ['blocked', 'js', 'robots'].includes(st) : st === status));
+        (!status || (status === 'usable' ? !['blocked', 'js', 'robots'].includes(st) : status === 'resale' ? s.resale && st === 'ok' : status === 'blocked' ? ['blocked', 'js', 'robots'].includes(st) : st === status));
     }).sort((a, b) => (ORDER[effectiveStatus(a)] ?? 9) - (ORDER[effectiveStatus(b)] ?? 9) || a.name.localeCompare(b.name));
     const okN = allSites().filter((s) => effectiveStatus(s) === 'ok').length;
     $('sdCount').textContent = `${okN} funcionam`;
     $('sdList').innerHTML = list.map(cardHtml).join('') || '<p class="empty">Nenhuma loja com estes filtros.</p>';
+    // lojas bloqueadas: escondidas por omissao, mas guardadas (evita voltar a testa-las e mostra se alguma volta a funcionar)
+    const hidden = allSites().filter((s) => ['blocked', 'js', 'robots'].includes(effectiveStatus(s))).length;
+    const base = data.verifiedAt ? `Lista verificada em ${new Date(data.verifiedAt).toLocaleDateString('pt-PT')} através do teu Worker. As lojas mudam — usa 🔍 Testar para confirmar.` : '';
+    $('sdFoot').innerHTML = esc(base) + (status === 'usable' && hidden
+      ? ` <button type="button" class="link" id="sdShowBlocked">⛔ ${hidden} lojas que bloqueiam estão escondidas — ver</button>` : '');
   }
 
   function useUrl(url, append, site) {
@@ -309,6 +314,7 @@ const SiteDir = (() => {
       render();
     }
   });
+  $('sdFoot').addEventListener('click', (e) => { if (e.target.id === 'sdShowBlocked') { $('sdStatus').value = 'blocked'; render(); } });
   ['sdSearch', 'sdCat', 'sdCountry', 'sdStatus'].forEach((id) => $(id).addEventListener(id === 'sdSearch' ? 'input' : 'change', render));
   $('sdAddBtn').addEventListener('click', addFromUrl);
   $('sdAddUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFromUrl(); } });

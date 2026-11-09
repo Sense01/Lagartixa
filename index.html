@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -57,8 +57,9 @@
           <option value="">Todos os países</option><option value="PT">🇵🇹 Portugal</option><option value="FR">🇫🇷 França</option>
         </select>
         <select id="sdStatus" aria-label="Estado">
-          <option value="">Todos os estados</option><option value="ok">✅ Funcionam</option>
-          <option value="partial">⚠️ Parcial</option><option value="blocked">⛔ Bloqueiam</option><option value="resale">📈 Bons para o simulador</option>
+          <option value="usable" selected>✅ Funcionam e parciais</option><option value="ok">✅ Só as que funcionam</option>
+          <option value="partial">⚠️ Parciais</option><option value="resale">📈 Bons para o simulador</option>
+          <option value="blocked">⛔ Bloqueadas (escondidas)</option><option value="">Todas</option>
         </select>
       </div>
       <div id="sdList" class="sd-list"></div>
@@ -305,18 +306,18 @@
     </div>
   </div>
 
-  <script src="bg.js?v=18"></script>
-  <script src="js/util.js?v=18"></script>
-  <script src="js/store.js?v=18"></script>
-  <script src="js/extract-lite.js?v=18"></script>
-  <script src="js/crawler.js?v=18"></script>
-  <script src="js/value.js?v=18"></script>
-  <script src="js/deals.js?v=18"></script>
-  <script src="js/resale.js?v=18"></script>
-  <script src="js/items.js?v=18"></script>
-  <script src="js/watch.js?v=18"></script>
-  <script src="js/monitor.js?v=18"></script>
-  <script src="js/sites.js?v=18"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="bg.js?v=19"></script>
+  <script src="js/util.js?v=19"></script>
+  <script src="js/store.js?v=19"></script>
+  <script src="js/extract-lite.js?v=19"></script>
+  <script src="js/crawler.js?v=19"></script>
+  <script src="js/value.js?v=19"></script>
+  <script src="js/deals.js?v=19"></script>
+  <script src="js/resale.js?v=19"></script>
+  <script src="js/items.js?v=19"></script>
+  <script src="js/watch.js?v=19"></script>
+  <script src="js/monitor.js?v=19"></script>
+  <script src="js/sites.js?v=19"></script>
+  <script src="js/app.js?v=19"></script>
 </body>
 </html>
