@@ -9,8 +9,8 @@ let kwFilter = null;
    Definições
    ========================================================= */
 const FIELDS = ['sites', 'keywords', 'maxPages', 'maxDepth', 'concurrency', 'delay', 'proxy', 'customProxy',
-  'minPrice', 'maxPrice', 'minDiscount', 'shotService'];
-const CHECKS = ['sameDomain', 'respectRobots', 'stripQuery', 'wholeWord', 'caseSensitive', 'notify'];
+  'minPrice', 'maxPrice', 'minDiscount', 'shotService', 'dealMode'];
+const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'wholeWord', 'caseSensitive', 'notify'];
 
 function saveSettings() {
   const s = {};
@@ -230,9 +230,11 @@ function itemCard(it, idx) {
         ${it.oldPrice != null ? `<s>${fmtPrice(it.oldPrice, it.currency)}</s>` : ''}
       </div>
       ${kws.length ? `<div>${kws.map((k) => `<span class="tag">${esc(k)}</span>`).join('')}</div>` : ''}
+      <div class="deal">${it.deal ? dealHtml(it.deal) : ''}</div>
       <div class="item-actions">
         <a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Abrir ↗</a>
         <button type="button" class="save-card">📸 Guardar</button>
+        ${$('dealMode').value !== 'off' && it.price != null ? `<button type="button" class="deal-btn">${it.deal && !it.deal.loading ? '🔄 Reavaliar' : '💡 Negócio?'}</button>` : ''}
       </div>
     </div>`;
   div.querySelectorAll('.shot-thumb img').forEach(watchShot);
@@ -242,6 +244,107 @@ function itemCard(it, idx) {
     div.querySelector('.media').classList.add('no-img');
   });
   return div;
+}
+
+/* ---------- "é bom negócio?" (Claude + pesquisa web, através do teu Worker) ---------- */
+function dealEndpoint() {
+  const tpl = $('customProxy').value.trim();
+  if (!tpl) return null;
+  try { return new URL(tpl.replace('{url}', 'x').replace('{rawurl}', 'x')).origin + '/deal'; } catch { return null; }
+}
+
+function countryOf(url) {
+  try {
+    const tld = new URL(url).hostname.split('.').pop().toUpperCase();
+    return ['PT', 'FR', 'ES', 'DE', 'IT', 'BE', 'NL', 'IE', 'AT', 'LU'].includes(tld) ? tld : 'PT';
+  } catch { return 'PT'; }
+}
+
+const VERDICTS = {
+  bom: ['Bom negócio', 'v-bom'],
+  razoavel: ['Preço normal', 'v-razoavel'],
+  caro: ['Caro', 'v-caro'],
+  incerto: ['Sem certeza', 'v-incerto'],
+};
+
+function dealHtml(d) {
+  if (d.loading) return `<div class="deal-box loading">🔎 A pesquisar preços na web…</div>`;
+  if (d.error) return `<div class="deal-box v-caro">⚠️ ${esc(d.error)}</div>`;
+  const key = String(d.verdict || 'incerto').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const [label, cls] = VERDICTS[key] || VERDICTS.incerto;
+  const nums = [
+    d.typicalPrice != null && `típico <b>${fmtPrice(+d.typicalPrice)}</b>`,
+    d.lowestPrice != null && `mais baixo <b>${fmtPrice(+d.lowestPrice)}</b>`,
+    d.rrp != null && `PVP <b>${fmtPrice(+d.rrp)}</b>`,
+  ].filter(Boolean).join(' · ');
+  const src = (d.sources || []).slice(0, 3).map((s) => {
+    let host = s.url; try { host = new URL(s.url).hostname.replace(/^www\./, ''); } catch {}
+    return `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(host)}</a>`;
+  }).join(' ');
+  return `<div class="deal-box ${cls}">
+      <div class="deal-head"><span class="verdict">${label}</span>${d.score != null ? `<span class="score">${Math.round(d.score)}/100</span>` : ''}</div>
+      ${nums ? `<div class="deal-nums">${nums}</div>` : ''}
+      ${d.summary ? `<div class="deal-sum">${esc(d.summary)}</div>` : ''}
+      ${src ? `<div class="deal-src">${src}</div>` : ''}
+    </div>`;
+}
+
+function refreshCard(it) {
+  const idx = items.indexOf(it);
+  const card = document.querySelector(`.item[data-idx="${idx}"]`);
+  if (card) card.replaceWith(itemCard(it, idx));
+}
+
+const dealKey = (it) => `deal:${it.name}|${it.price}`.toLowerCase();
+
+async function evaluateDeal(it, { force = false } = {}) {
+  const endpoint = dealEndpoint();
+  if (!endpoint) {
+    it.deal = { error: 'Configura "O meu proxy" (o teu Worker) para usar esta função' };
+    refreshCard(it);
+    return it.deal;
+  }
+  if (!force) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(dealKey(it)) || 'null');
+      if (saved && Date.now() - Date.parse(saved.checkedAt) < 24 * 3600e3) { it.deal = saved; refreshCard(it); return saved; }
+    } catch {}
+  }
+  it.deal = { loading: true };
+  refreshCard(it);
+  try {
+    let store = ''; try { store = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
+    const name = it.brand && !it.name.toLowerCase().includes(it.brand.toLowerCase()) ? `${it.brand} ${it.name}` : it.name;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, price: it.price, oldPrice: it.oldPrice, currency: 'EUR', store, country: countryOf(it.url) }),
+    });
+    const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    it.deal = data;
+    try { localStorage.setItem(dealKey(it), JSON.stringify(data)); } catch {}
+  } catch (e) {
+    it.deal = { error: /Failed to fetch|Load failed|NetworkError/.test(e.message)
+      ? 'O Worker não respondeu — confirma que tem a versão nova (com /deal)' : e.message };
+  }
+  refreshCard(it);
+  return it.deal;
+}
+
+async function autoEvaluateDeals() {
+  const top = items.filter((it) => it.price != null && !it.deal)
+    .sort((a, b) => (b.discount ?? -1) - (a.discount ?? -1)).slice(0, 10);
+  if (!top.length) return;
+  toast(`💡 A avaliar ${top.length} produto(s)…`);
+  let good = 0, done = 0;
+  for (const it of top) {
+    const d = await evaluateDeal(it);
+    if (d?.error) { if (/proxy|Worker|ANTHROPIC|autorizada/.test(d.error)) break; continue; }
+    done++;
+    if (String(d?.verdict || '').startsWith('bom')) good++;
+  }
+  if (done) notifyDone('Avaliação concluída', good ? `${good} bom(ns) negócio(s) entre ${done} produto(s)` : `Nenhum bom negócio claro entre ${done} produto(s)`);
 }
 
 /* ---------- visualizador da captura ---------- */
@@ -295,6 +398,12 @@ $('items').addEventListener('click', (e) => {
   if (thumb) {
     const it = items[+thumb.closest('.item').dataset.idx];
     return openViewer(it, thumb.querySelector('img').src);
+  }
+  const dealBtn = e.target.closest('.deal-btn');
+  if (dealBtn) {
+    const it = items[+dealBtn.closest('.item').dataset.idx];
+    if (it.deal?.loading) return;
+    return evaluateDeal(it, { force: !!it.deal });
   }
   const btn = e.target.closest('.save-card');
   if (!btn) return;
@@ -570,6 +679,7 @@ $('config').addEventListener('submit', async (e) => {
     delay: +$('delay').value,
     proxies,
     sameDomain: $('sameDomain').checked,
+    sameSection: $('sameSection').checked,
     respectRobots: $('respectRobots').checked,
     stripQuery: $('stripQuery').checked,
   });
@@ -600,7 +710,8 @@ $('config').addEventListener('submit', async (e) => {
       : s.errors && s.errors === s.crawled
         ? `Falhou: ${s.errors} erro(s) — vê o log`
         : `${s.crawled} página(s) analisada(s), ${s.matches} com palavras-chave`;
-    notifyDone(state === 'erro' ? 'Crawling com erro' : 'Crawling terminado', body);
+    await notifyDone(state === 'erro' ? 'Crawling com erro' : 'Crawling terminado', body);
+    if ($('dealMode').value === 'auto' && items.length) autoEvaluateDeals();
   }
 });
 
@@ -644,6 +755,7 @@ $('exportCsv').addEventListener('click', () => {
 
 $('exportItems').addEventListener('click', () => {
   const cols = ['name', 'brand', 'price', 'oldPrice', 'discount', 'currency', 'url', 'image', 'page', 'source', 'foundAt'];
-  const rows = items.map((it) => [...cols.map((c) => it[c]), Object.keys(it.keywordHits || {}).join(' | '), screenshotUrl(it.url)].map(cell).join(','));
-  download(`produtos-${stamp()}.csv`, '﻿' + [[...cols, 'keywords', 'screenshot'].map(cell).join(','), ...rows].join('\n'), 'text/csv');
+  const rows = items.map((it) => [...cols.map((c) => it[c]), Object.keys(it.keywordHits || {}).join(' | '), screenshotUrl(it.url),
+    it.deal?.verdict ?? '', it.deal?.score ?? '', it.deal?.typicalPrice ?? '', it.deal?.lowestPrice ?? '', it.deal?.rrp ?? '', it.deal?.summary ?? ''].map(cell).join(','));
+  download(`produtos-${stamp()}.csv`, '﻿' + [[...cols, 'keywords', 'screenshot', 'negocio', 'pontuacao', 'preco_tipico', 'preco_mais_baixo', 'pvp', 'resumo'].map(cell).join(','), ...rows].join('\n'), 'text/csv');
 });

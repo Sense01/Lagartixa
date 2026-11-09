@@ -515,6 +515,36 @@ td.status { max-width: 320px; }
 }
 .item-actions .btn:hover { background: var(--surface-hover); }
 
+/* ---------- "é bom negócio?" ---------- */
+.deal:empty { display: none; }
+.deal-box {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.deal-box.loading { color: var(--muted); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.5; } }
+.deal-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.verdict { font-weight: 800; font-size: 0.85rem; }
+.score { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.deal-nums { color: var(--muted); }
+.deal-nums b { color: var(--text); }
+.deal-src { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.deal-src a { color: var(--muted); font-size: 0.7rem; text-decoration: underline; text-underline-offset: 2px; }
+.v-bom { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.v-bom .verdict { color: var(--ok); }
+.v-razoavel { border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.v-razoavel .verdict { color: var(--warn); }
+.v-caro { border-color: color-mix(in srgb, var(--err) 55%, transparent); background: color-mix(in srgb, var(--err) 12%, transparent); }
+.v-caro .verdict { color: var(--err); }
+.v-incerto .verdict { color: var(--muted); }
+
 /* ---------- visualizador da captura ---------- */
 .viewer {
   position: fixed;

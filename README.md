@@ -13,6 +13,8 @@ Crawler que corre inteiramente no browser — HTML, CSS e JavaScript puros, sem 
 - **Screenshot por produto**: captura da página de cada produto (WordPress mShots ou thum.io, grátis)
   e botão **📸 Guardar** que gera um cartão PNG (foto, preço, desconto) — no iPhone abre a folha de partilha
   para guardar nas Fotografias.
+- **"É bom negócio?"**: o Claude pesquisa na web o preço típico, o mais baixo e o PVP de cada produto e dá um veredicto (via o teu Worker; ver `worker/README.md`).
+- **Ficar dentro da secção**: ao começar em `/componentes/`, só segue links dessa secção (não perde tempo em contactos, blog…).
 - **Notificação quando termina** + som + vibração + número no ícone da app.
 - **Proxies com troca automática**: se um proxy falhar, tenta o seguinte. Suporta o teu próprio proxy (ver `worker/`).
 - Exportação: JSON (páginas + produtos), CSV de páginas, CSV de produtos.

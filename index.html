@@ -70,7 +70,15 @@
           Desconto mínimo (%)
           <input type="number" id="minDiscount" min="0" max="99" step="1" inputmode="numeric" placeholder="—">
         </label>
-        <label>
+        <label class="half">
+          Avaliar se é bom negócio <small>(IA pesquisa preços na web; precisa do teu Worker com chave da API)</small>
+          <select id="dealMode">
+            <option value="manual">Ao tocar no botão 💡 de cada produto</option>
+            <option value="auto">Automático para os 10 maiores descontos</option>
+            <option value="off">Desligado</option>
+          </select>
+        </label>
+        <label class="half">
           Screenshot de cada produto
           <select id="shotService">
             <option value="mshots">WordPress mShots (grátis)</option>
@@ -114,6 +122,7 @@
 
         <div class="checks full">
           <label><input type="checkbox" id="sameDomain" checked> Ficar dentro dos sites indicados</label>
+          <label><input type="checkbox" id="sameSection" checked> Ficar dentro da secção indicada (ex.: /componentes/…)</label>
           <label><input type="checkbox" id="respectRobots" checked> Respeitar robots.txt</label>
           <label><input type="checkbox" id="stripQuery"> Ignorar query strings (?a=b)</label>
           <label><input type="checkbox" id="notify" checked> Notificar quando terminar</label>

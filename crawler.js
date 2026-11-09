@@ -28,6 +28,7 @@ class Crawler {
       delay: 300,
       proxies: PUBLIC_PROXIES,   // [{name, tpl}] — tentados por ordem
       sameDomain: true,
+      sameSection: true,     // só segue links dentro do caminho indicado (ex.: /componentes/…)
       respectRobots: true,
       stripQuery: false,
       timeout: 20000,
@@ -75,6 +76,15 @@ class Crawler {
     } catch {
       return null;
     }
+  }
+
+  inSection(url) {
+    const u = new URL(url);
+    const host = this.hostKey(url);
+    const path = u.pathname.toLowerCase();
+    return (this.sections || []).some(
+      (s) => s.host === host && (!s.path || path === s.path || path.startsWith(s.path + '/') || path.startsWith(s.path + '.') || path.startsWith(s.path + '?'))
+    );
   }
 
   hostKey(url) {
@@ -636,6 +646,7 @@ class Crawler {
     if (this.seen.size >= this.opts.maxPages) return;
     if (depth > this.opts.maxDepth) return;
     if (this.opts.sameDomain && !this.startHosts.has(this.hostKey(url))) return;
+    if (this.opts.sameSection && !this.inSection(url)) return;
     this.seen.add(url);
     this.queue.push({ url, depth, from });
   }
@@ -649,6 +660,12 @@ class Crawler {
     if (!starts.length) throw new Error('Indique pelo menos um site válido');
 
     this.startHosts = new Set(starts.map((u) => this.hostKey(u)));
+    // secções: o caminho de cada site de partida (sem o último "/" e sem extensão .html)
+    this.sections = starts.map((u) => {
+      const x = new URL(u);
+      const path = x.pathname.replace(/\.(html?|php|aspx?)$/i, '').replace(/\/+$/, '').toLowerCase();
+      return { host: this.hostKey(u), path };
+    });
     this.running = true;
     this.onLog(`A iniciar em: ${starts.join(', ')}`);
     this.onLog(`Proxies: ${this.proxies.map((p) => p.name).join(' → ')}`);
