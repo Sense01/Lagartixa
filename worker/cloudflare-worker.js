@@ -211,6 +211,18 @@ const LiteX = (() => {
       it.name = decode(m[1]).trim();
       it.price = parsePrice(priceAttr);
       if (it.oldPrice != null && it.oldPrice <= it.price) it.oldPrice = null;
+      // bloco so com metadados (sem preco antigo): procurar o preco riscado junto do preco visivel igual
+      if (it.oldPrice == null && it.price != null) {
+        const esc = priceAttr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const vis = new RegExp(`itemprop\\s*=\\s*["']price["'][^>]*content\\s*=\\s*["']${esc}["']`, 'gi');
+        let v;
+        while ((v = vis.exec(html)) && it.oldPrice == null) {
+          const w0 = Math.max(0, v.index - 1500), win = html.slice(w0, v.index + 400);
+          const near = struckRanges(win).filter(([, e]) => e <= v.index - w0 + 400);
+          const sp = pricesIn(stripTags(near.map(([a, b]) => win.slice(a, b)).join(' ').replace(/(\d)((?:\s*<\/?(?:span|sup|sub|small|b|strong|em|i)\b[^>]*>\s*)+)([.,]\d{2})(?!\d)/gi, '$1$3$2'))).filter((x) => x > it.price && x < it.price * 5);
+          if (sp.length) it.oldPrice = Math.max(...sp);
+        }
+      }
       it.ean = it.ean || attr(seg, /itemprop\s*=\s*["']gtin13["'][^>]*content\s*=\s*["']([^"']+)["']/i) || '';
       it.sku = it.sku || attr(seg, /itemprop\s*=\s*["']sku["'][^>]*content\s*=\s*["']([^"']+)["']/i) || '';
       if (it.oldPrice && it.price && it.discount == null) it.discount = Math.round((1 - it.price / it.oldPrice) * 100);
@@ -320,7 +332,8 @@ const LiteX = (() => {
       attr(img, /background-image\s*:\s*url\(\s*['"]?([^'")]+)/i),
     ];
     const imgSrc = imgCands.find((u) => !placeholder(u)) || '';
-    const name = (named && stripTags(named[2])) || heading || attr(img, /alt\s*=\s*["']([^"']+)["']/i) || '';
+    const microName = attr(seg, /itemprop\s*=\s*["']name["'][^>]*content\s*=\s*["']([^"']{4,})["']/i);
+    const name = microName || (named && stripTags(named[2])) || heading || attr(img, /alt\s*=\s*["']([^"']+)["']/i) || '';
     const discount = (text.match(/-\s?(\d{1,2})\s?%/) || [])[1];
     return makeItem({
       name, price, oldPrice, discount,
@@ -339,8 +352,11 @@ const LiteX = (() => {
     let m;
     while ((m = re.exec(body))) {
       const cls = m[2].trim().replace(/\s+/g, ' ');
-      if (!groups.has(cls)) groups.set(cls, []);
-      groups.get(cls).push(m.index);
+      // agrupa pela classe completa e pela primeira classe ("product-grid-module ECI" e "product-grid-module" sao o mesmo cartao)
+      for (const key of new Set([cls, 'first:' + m[1].toLowerCase() + ':' + cls.split(' ')[0]])) {
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(m.index);
+      }
     }
     let best = null;
     for (const [cls, pos] of groups) {
