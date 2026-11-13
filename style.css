@@ -957,8 +957,7 @@ button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: 
 
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 14;
-  background: rgba(5, 6, 15, 0.5);
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  background: rgba(5, 6, 15, 0.62);   /* sem desfoque: desfocar a página inteira por baixo de uma folha pesa muito no telemóvel */
   animation: fade 0.3s var(--ease);
 }
 .sheet {
@@ -972,16 +971,18 @@ button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: 
   display: flex;
   flex-direction: column;
   border-radius: var(--radius);
-  background: linear-gradient(145deg, var(--glass-a), var(--glass-b)), var(--sheet-bg);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
+  background: linear-gradient(145deg, var(--glass-a), var(--glass-b)), var(--sheet-solid);
   border: 1px solid var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
   animation: sheet-up 0.4s var(--ease);
 }
 @keyframes sheet-up { from { opacity: 0; transform: translate(-50%, 24px); } }
-:root, html[data-theme="dark"] { --sheet-bg: rgba(18, 18, 20, 0.82); }
-html[data-theme="light"] { --sheet-bg: rgba(244, 244, 246, 0.86); }
+:root, html[data-theme="dark"] { --sheet-bg: rgba(18, 18, 20, 0.82); --sheet-solid: #161618; }
+html[data-theme="light"] { --sheet-bg: rgba(244, 244, 246, 0.86); --sheet-solid: #f1f1f3; }
+/* dentro das folhas: sem desfoques por elemento nem animações por linha (a tabela cresce durante a pesquisa) */
+.sheet th, .sheet button { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet th { background: var(--sheet-solid); }
+.sheet tbody tr { animation: none; }
 .sheet-head { display: flex; align-items: flex-start; gap: 0.75rem; padding: 1rem 1.1rem 0.7rem; border-bottom: 1px solid var(--divider); }
 .sheet-head h2 { flex: 1; margin: 0; padding-top: 0.35rem; }
 .sheet-close { width: 38px; height: 38px; padding: 0; flex-shrink: 0; border-radius: 50%; }

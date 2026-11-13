@@ -359,6 +359,33 @@
     localStorage.removeItem('test-crawler-translate'); Translate._reset();
   }
 
+  group('O crawler não depende da interface');
+  {
+    const page = (n) => `<html><title>Cat ${n}</title><body>${[1, 2, 3].map((k) => `<a href="/cat/p${n * 3 + k}">p</a>`).join('')}</body></html>`;
+    const make = () => {
+      const c = new Crawler({ startUrls: ['https://loja.pt/cat/p0'], maxPages: 20, maxDepth: 6, concurrency: 3, delay: 0, sameSection: false, respectRobots: false, proxies: [{ name: 'direto', tpl: '{url}' }] });
+      c.fetchOnce = async (url) => { await new Promise((r) => setTimeout(r, 5)); return { status: 200, ok: true, type: 'text/html', text: page(+url.match(/p(\d+)$/)[1]), ms: 1 }; };
+      return c;
+    };
+    // um erro ao desenhar o ecrã (ex.: ao abrir o Histórico) não pode parar a pesquisa
+    const c = make();
+    const quiet = console.error; console.error = () => {};
+    let calls = 0, seen = 0;
+    c.onProgress = () => { if (++calls % 2) throw new Error('erro ao desenhar'); };
+    c.onResult = () => { seen++; throw new Error('erro na tabela'); };
+    c.onLog = () => { throw new Error('erro no registo'); };
+    let outcome = 'ok';
+    try { await c.start(); } catch (e) { outcome = e.message; }
+    console.error = quiet;
+    ok(outcome === 'ok' && c.results.length === 20 && seen === 20, 'erros da interface não param nem rejeitam o crawler (20 de 20 páginas)', { outcome, pages: c.results.length, seen });
+    ok(c.uiErrors > 20, 'os erros da interface ficam contados para o registo', c.uiErrors);
+    // parar: só quando alguém chama stop()
+    const d = make();
+    d.onResult = (r, i) => { if (i === 5) d.stop(); };
+    const res = await d.start();
+    ok(res.stopped && d.results.length < 20, 'Parar continua a parar a pesquisa', d.results.length);
+  }
+
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;
   sum.className = fail ? 'fail' : 'pass';

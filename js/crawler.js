@@ -61,6 +61,17 @@ class Crawler {
     this.onProgress = () => {};
   }
 
+  /**
+   * Chama um callback da interface (onResult, onItem, onLog, onProgress).
+   * Um erro ao desenhar o ecrã fica registado na consola mas nunca pára nem rejeita o crawler.
+   */
+  ui(name, ...args) {
+    try { this[name](...args); } catch (e) {
+      this.uiErrors = (this.uiErrors || 0) + 1;
+      console.error(`Erro na interface (${name}):`, e);
+    }
+  }
+
   get hasItemFilters() {
     const o = this.opts;
     return this.matchers.length > 0 || o.minPrice != null || o.maxPrice != null || o.minDiscount != null;
@@ -137,7 +148,7 @@ class Crawler {
         // 401/403/407: proxy a pedir chave ou site a bloquear o IP do proxy → tenta o seguinte
         if ([0, 401, 403, 407, 408, 429].includes(r.status) || r.status >= 500) {
           failures.push(`${p.name}: HTTP ${r.status}`);
-          this.onLog(`Proxy ${p.name} respondeu HTTP ${r.status} — a tentar o seguinte`);
+          this.ui('onLog', `Proxy ${p.name} respondeu HTTP ${r.status} — a tentar o seguinte`);
           lastResponse = r;
           continue;
         }
@@ -146,7 +157,7 @@ class Crawler {
         if (i > 0) {
           this.proxies.splice(i, 1);
           this.proxies.unshift(p);
-          this.onLog(`A usar o proxy ${p.name}`);
+          this.ui('onLog', `A usar o proxy ${p.name}`);
         }
         r.proxy = p.name;
         return r;
@@ -327,7 +338,7 @@ class Crawler {
       it.foundAt = new Date().toISOString();
       this.items.push(it);
       row.items.push(it);
-      this.onItem(it, this.items.length);
+      this.ui('onItem', it, this.items.length);
     }
   }
 
@@ -509,7 +520,7 @@ class Crawler {
           )
         );
       }
-      this.onLog(`Lidl: ${Math.min(offset + items.length, total)}/${total} produtos`);
+      this.ui('onLog', `Lidl: ${Math.min(offset + items.length, total)}/${total} produtos`);
       if (!items.length) break;
       offset += items.length;
     }
@@ -571,9 +582,9 @@ class Crawler {
         rules = this.parseRobots(r.text);
         rules.sitemaps = LiteX.robotsSitemaps(r.text);
       }
-      this.onLog(`robots.txt de ${origin}: ${rules.length} regras`);
+      this.ui('onLog', `robots.txt de ${origin}: ${rules.length} regras`);
     } catch {
-      this.onLog(`robots.txt de ${origin} indisponível — a continuar sem regras`);
+      this.ui('onLog', `robots.txt de ${origin} indisponível — a continuar sem regras`);
     }
     return rules;
   }
@@ -661,7 +672,7 @@ class Crawler {
   /** junta ao inicio da fila as paginas de produto do sitemap cujo endereco/titulo tem as palavras-chave */
   async seedFromSitemaps(starts) {
     if (!this.matchers.length) {
-      this.onLog('Sitemap: indica palavras-chave para escolher os produtos (o sitemap tem milhares de páginas)');
+      this.ui('onLog', 'Sitemap: indica palavras-chave para escolher os produtos (o sitemap tem milhares de páginas)');
       return;
     }
     for (const origin of [...new Set(starts.map((u) => new URL(u).origin))]) {
@@ -673,10 +684,10 @@ class Crawler {
         const sm = pending.shift();
         if (done.has(sm)) continue;
         done.add(sm);
-        if (/\.gz($|\?)/i.test(sm)) { this.onLog(`Sitemap comprimido ignorado: ${sm}`); continue; }
+        if (/\.gz($|\?)/i.test(sm)) { this.ui('onLog', `Sitemap comprimido ignorado: ${sm}`); continue; }
         let r;
-        try { r = await this.fetchText(sm, { timeout: 45000, maxTries: 2 }); } catch (e) { this.onLog(`Sitemap indisponível: ${sm} (${e.message})`); continue; }
-        if (!r.ok) { this.onLog(`Sitemap ${sm}: HTTP ${r.status}`); continue; }
+        try { r = await this.fetchText(sm, { timeout: 45000, maxTries: 2 }); } catch (e) { this.ui('onLog', `Sitemap indisponível: ${sm} (${e.message})`); continue; }
+        if (!r.ok) { this.ui('onLog', `Sitemap ${sm}: HTTP ${r.status}`); continue; }
         files++;
         const { sitemaps, urls } = LiteX.parseSitemap(r.text);
         // indice: so os sub-sitemaps que parecem de produtos (paginas, categorias, blog... ficam para o fim)
@@ -698,13 +709,13 @@ class Crawler {
           const n = this.normalize(loc);
           if (n && this.enqueue(n, this.opts.maxDepth, sm, { product: true, title })) added++;
         }
-        this.onLog(`Sitemap ${sm.split('/').pop()}: ${urls.length} endereços, ${found} com as palavras-chave até agora`);
+        this.ui('onLog', `Sitemap ${sm.split('/').pop()}: ${urls.length} endereços, ${found} com as palavras-chave até agora`);
       }
       if (files) {
-        this.onLog(`Sitemap de ${new URL(origin).hostname}: ${added} páginas de produto em fila` +
+        this.ui('onLog', `Sitemap de ${new URL(origin).hostname}: ${added} páginas de produto em fila` +
           (found > added ? ` (${found - added} ficaram de fora — aumenta "Máx. páginas" para ver todas)` : ''));
       } else {
-        this.onLog(`Sitemap de ${new URL(origin).hostname}: não encontrado`);
+        this.ui('onLog', `Sitemap de ${new URL(origin).hostname}: não encontrado`);
       }
     }
   }
@@ -725,12 +736,12 @@ class Crawler {
       return { host: this.hostKey(u), path };
     });
     this.running = true;
-    this.onLog(`A iniciar em: ${starts.join(', ')}`);
-    this.onLog(`Proxies: ${this.proxies.map((p) => p.name).join(' → ')}`);
-    if (this.matchers.length) this.onLog(`Palavras-chave: ${this.matchers.map((m) => m.kw).join(', ')}`);
+    this.ui('onLog', `A iniciar em: ${starts.join(', ')}`);
+    this.ui('onLog', `Proxies: ${this.proxies.map((p) => p.name).join(' → ')}`);
+    if (this.matchers.length) this.ui('onLog', `Palavras-chave: ${this.matchers.map((m) => m.kw).join(', ')}`);
     const o = this.opts;
     if (o.minPrice != null || o.maxPrice != null || o.minDiscount != null) {
-      this.onLog(`Filtros: preço ${o.minPrice ?? '–'} a ${o.maxPrice ?? '–'}, desconto ≥ ${o.minDiscount ?? 0}%`);
+      this.ui('onLog', `Filtros: preço ${o.minPrice ?? '–'} a ${o.maxPrice ?? '–'}, desconto ≥ ${o.minDiscount ?? 0}%`);
     }
     for (const s of starts) {
       if (!this.seen.has(s)) {
@@ -745,7 +756,7 @@ class Crawler {
 
     const stopped = !this.running;
     this.running = false;
-    this.onLog(`Terminado: ${this.results.length} páginas, ${this.items.length} produtos encontrados, ${this.errors} erros`);
+    this.ui('onLog', `Terminado: ${this.results.length} páginas, ${this.items.length} produtos encontrados, ${this.errors} erros`);
     return { stopped };
   }
 
@@ -777,7 +788,7 @@ class Crawler {
         await this.visit(job);
       } finally {
         this.active--;
-        this.onProgress(this.stats());
+        this.ui('onProgress', this.stats());
       }
       if (this.opts.delay) await this.sleep(this.opts.delay);
     }
@@ -800,7 +811,7 @@ class Crawler {
       }
 
       if (this.lidlApiUrl(url, 0, 1)) {
-        this.onLog(`Página de pesquisa do Lidl detetada — a usar a API de produtos`);
+        this.ui('onLog', `Página de pesquisa do Lidl detetada — a usar a API de produtos`);
         await this.visitLidl(row);
       } else {
         const r = await this.fetchText(url);
@@ -860,7 +871,7 @@ class Crawler {
       row.error = e.name === 'AbortError' ? (this.running ? 'Timeout' : 'Cancelado') : e.message;
       if (e.siteBlocked) {
         row.status = 'bloqueado';
-        this.onLog(`Detalhe: ${e.details}`);
+        this.ui('onLog', `Detalhe: ${e.details}`);
       } else if (e.proxyFailure) {
         row.error += ' — o site pode estar a bloquear proxies públicos; experimenta o teu próprio proxy (ver worker/README.md)';
       }
@@ -878,15 +889,15 @@ class Crawler {
       }
     }
     this.results.push(row);
-    this.onResult(row, this.results.length);
-    if (row.error) this.onLog(`✗ ${row.url} — ${row.error}`);
+    this.ui('onResult', row, this.results.length);
+    if (row.error) this.ui('onLog', `✗ ${row.url} — ${row.error}`);
   }
 
-  stop() {
+  stop(reason = 'Parado pelo utilizador') {
     this.running = false;
     this.queue = [];
     this.controllers.forEach((c) => c.abort());
-    this.onLog('Parado pelo utilizador');
+    this.ui('onLog', reason);
   }
 
   stats() {

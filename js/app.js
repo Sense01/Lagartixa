@@ -267,7 +267,18 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) try { navigator.clearAppBadge?.(); } catch {}
 });
 
-/* ---------- iniciar / parar ---------- */
+/* ---------- iniciar / parar ----------
+   O crawler vive num objeto próprio (js/crawler.js) e só pára em três casos: chega ao fim,
+   carregas em Parar, ou a página é recarregada/fechada. As folhas da barra inferior ficam
+   por cima da página, no mesmo documento, e não lhe tocam. */
+
+// marca "pesquisa a correr": se ainda existir ao abrir a app, a página recarregou a meio
+const RunFlag = {
+  key: 'crawler-running',
+  set() { try { sessionStorage.setItem(this.key, String(Date.now())); } catch {} },
+  clear() { try { sessionStorage.removeItem(this.key); } catch {} },
+  interrupted() { try { return !!sessionStorage.getItem(this.key); } catch { return false; } },
+};
 function setRunning(on) {
   $('startBtn').disabled = on;
   $('stopBtn').disabled = !on;
@@ -332,6 +343,7 @@ $('config').addEventListener('submit', async (e) => {
     useSitemap: $('useSitemap').checked,
   });
 
+  RunFlag.set();
   crawler.onResult = (r, i) => { results.push(r); addRow(r, i); };
   crawler.onItem = (it, n) => {
     it.trend = Store.recordPrice(it);         // histórico de preços (antes de desenhar o cartão)
@@ -351,7 +363,10 @@ $('config').addEventListener('submit', async (e) => {
   } catch (err) {
     log('Erro: ' + err.message);
     state = 'erro';
+    crawler.stop('Parado depois do erro');   // nada fica a correr às escondidas depois de um erro
   }
+  if (crawler.uiErrors) log(`⚠️ ${crawler.uiErrors} erro(s) ao desenhar o ecrã (a pesquisa continuou; detalhes na consola do browser)`);
+  RunFlag.clear();
   const s = crawler.stats();
   updateStats(s, state);
   setRunning(false);
@@ -374,7 +389,8 @@ $('config').addEventListener('submit', async (e) => {
 });
 
 $('stopBtn').addEventListener('click', () => {
-  crawler?.stop();
+  if (!crawler?.running) return;      // ainda a traduzir, ou já terminou
+  crawler.stop();
   updateStats(crawler.stats(), 'parado');
 });
 
@@ -408,6 +424,11 @@ $('exportItems').addEventListener('click', () => {
 /* ---------- arranque ---------- */
 loadSettings();
 ['itemSort', 'onlyGood', 'hideOut', 'onlyDrops', 'proxy', 'customProxy'].forEach((id) => $(id).addEventListener('change', saveSettings));
+if (RunFlag.interrupted()) {
+  RunFlag.clear();
+  log('⚠️ A última pesquisa foi interrompida porque a página recarregou a meio (atualização da página, ou o browser fechou-a por falta de memória).');
+  toast('A página recarregou a meio da pesquisa. Carrega em Iniciar para a repetir.', 7000);
+}
 $('keywords').addEventListener('input', debounce(renderTranslated, 300));
 $('translate').addEventListener('change', () => { saveSettings(); renderTranslated(); });
 renderTranslated();
