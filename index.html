@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -89,12 +89,14 @@
         </label>
         <label class="half">
           Palavras-chave <small>(uma por linha ou separadas por vírgula)</small>
-          <textarea id="keywords" rows="4" placeholder="preço&#10;entrega grátis&#10;promoção"></textarea>
+          <textarea id="keywords" rows="4" placeholder="adaptador&#10;cabo hdmi&#10;monitor"></textarea>
+          <span id="kwTr" class="kw-tr hidden" aria-live="polite"></span>
         </label>
 
         <div class="checks full">
           <label><input type="checkbox" id="wholeWord" checked> Palavra inteira</label>
           <label><input type="checkbox" id="caseSensitive"> Distinguir maiúsculas/minúsculas</label>
+          <label title="Procura também as palavras-chave em português, francês, espanhol e alemão, para apanhar os mesmos produtos nas lojas dos outros países. As palavras que o dicionário da app não conhece são traduzidas uma vez pela IA do teu Worker."><input type="checkbox" id="translate" checked> 🌍 Traduzir palavras-chave (PT · FR · ES · DE)</label>
         </div>
 
         <label>
@@ -224,8 +226,34 @@
       <div id="compareList" class="cmp-list"></div>
     </section>
 
-    <details class="panel" id="resalePanel">
-      <summary><h2>📈 Simulador de revenda <small class="h-sub">comprar barato aqui e revender: dá lucro?</small></h2></summary>
+    <details class="panel" id="monitorPanel">
+      <summary><h2>🔔 Alertas automáticos <small class="h-sub">o teu Worker verifica sozinho e avisa-te no iPhone</small></h2></summary>
+      <p class="mon-desc">O Worker verifica de hora a hora os produtos que segues (☆ Seguir) e as pesquisas guardadas com 🔔,
+        e envia uma notificação quando um preço desce, fica abaixo do teu alvo, volta ao stock ou aparece um produto novo —
+        mesmo com a app fechada.</p>
+      <div id="monStatus"></div>
+      <label class="mon-below">Nas pesquisas com 🔔, avisar só quando o produto está pelo menos
+        <span class="rs-in"><input type="number" id="monBelow" min="0" max="90" step="1" value="0"><i>%</i></span>
+        abaixo da média <small>(das outras lojas com o mesmo produto, do histórico ou do preço antigo · 0 = avisar todos os produtos novos e descidas)</small></label>
+      <div class="buttons">
+        <button type="button" id="monEnable">🔔 Ativar notificações neste aparelho</button>
+        <button type="button" id="monTest">Enviar teste</button>
+        <button type="button" id="monRun">▶ Verificar agora</button>
+      </div>
+      <h2 class="mt">Últimos alertas</h2>
+      <div id="monAlerts" class="alerts"></div>
+    </details>
+  </main>
+
+  <!-- Folhas abertas pela barra inferior (ficam por cima da página) -->
+  <div id="sheetBackdrop" class="sheet-backdrop hidden"></div>
+
+  <section class="sheet hidden" id="resalePanel" data-sheet="resale" role="dialog" aria-label="Simulador de revenda">
+      <header class="sheet-head">
+        <h2>Simulador de revenda <small class="h-sub">comprar barato aqui e revender: dá lucro?</small></h2>
+        <button type="button" class="sheet-close" data-sheet-close aria-label="Fechar">✕</button>
+      </header>
+      <div class="sheet-body">
       <p class="mon-desc">Para cada produto encontrado: preço de revenda (o teu valor, a avaliação 💡 da IA, outra loja ou o preço antigo),
         menos comissões, portes, embalagem, IVA e devoluções. Depois simula vários meses de compras e vendas, com o dinheiro reinvestido.
         Os valores de partida são suposições: ajusta-os à plataforma onde venderias.</p>
@@ -245,33 +273,19 @@
         <button type="submit">＋ Juntar</button>
       </form>
       <div id="rsTable"></div>
-    </details>
-
-    <details class="panel" id="monitorPanel">
-      <summary><h2>🔔 Alertas automáticos <small class="h-sub">o teu Worker verifica sozinho e avisa-te no iPhone</small></h2></summary>
-      <p class="mon-desc">O Worker verifica de hora a hora os produtos que segues (☆ Seguir) e as pesquisas guardadas com 🔔,
-        e envia uma notificação quando um preço desce, fica abaixo do teu alvo, volta ao stock ou aparece um produto novo —
-        mesmo com a app fechada.</p>
-      <div id="monStatus"></div>
-      <label class="mon-below">Nas pesquisas com 🔔, avisar só quando o produto está pelo menos
-        <span class="rs-in"><input type="number" id="monBelow" min="0" max="90" step="1" value="0"><i>%</i></span>
-        abaixo da média <small>(das outras lojas com o mesmo produto, do histórico ou do preço antigo · 0 = avisar todos os produtos novos e descidas)</small></label>
-      <div class="buttons">
-        <button type="button" id="monEnable">🔔 Ativar notificações neste aparelho</button>
-        <button type="button" id="monTest">Enviar teste</button>
-        <button type="button" id="monRun">▶ Verificar agora</button>
       </div>
-      <h2 class="mt">Últimos alertas</h2>
-      <div id="monAlerts" class="alerts"></div>
-    </details>
+  </section>
 
-    <section class="panel hidden" id="kwPanel">
-      <h2>Palavras-chave</h2>
-      <div id="kwSummary" class="kw-summary"></div>
-    </section>
-
-    <section class="panel">
-      <div class="toolbar">
+  <section class="sheet hidden" id="historyPanel" data-sheet="history" role="dialog" aria-label="Histórico de achados">
+      <header class="sheet-head">
+        <h2>Histórico de achados <small class="h-sub">páginas visitadas nesta pesquisa e palavras-chave encontradas</small></h2>
+        <button type="button" class="sheet-close" data-sheet-close aria-label="Fechar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <div id="kwPanel" class="hidden">
+          <div id="kwSummary" class="kw-summary"></div>
+        </div>
+        <div class="toolbar">
         <input type="search" id="filter" placeholder="Filtrar resultados…">
         <label class="inline"><input type="checkbox" id="onlyMatches"> Só páginas com palavras-chave</label>
       </div>
@@ -286,13 +300,25 @@
           <tbody id="results"></tbody>
         </table>
       </div>
-    </section>
+        <p id="historyEmpty" class="empty">Ainda sem páginas visitadas. Faz uma pesquisa para as ver aqui.</p>
+      </div>
+  </section>
 
-    <section class="panel">
-      <h2>Log</h2>
-      <pre id="log"></pre>
-    </section>
-  </main>
+  <section class="sheet hidden" id="logPanel" data-sheet="log" role="dialog" aria-label="Registo">
+      <header class="sheet-head">
+        <h2>Registo <small class="h-sub">o que o crawler fez, passo a passo</small></h2>
+        <button type="button" class="sheet-close" data-sheet-close aria-label="Fechar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <pre id="log"></pre>
+      </div>
+  </section>
+
+  <nav class="bottom-nav" id="bottomNav" aria-label="Ferramentas">
+    <button type="button" data-sheet-open="resale" aria-controls="resalePanel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5.5-5.5 4 4L21 7"/><path d="M15 7h6v6"/></svg><span>Simular revenda</span></button>
+    <button type="button" data-sheet-open="history" aria-controls="historyPanel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 4v4.5H8"/><path d="M12 7.5V12l3 2"/></svg><span>Histórico</span><b class="nav-badge hidden" id="navHistory"></b></button>
+    <button type="button" data-sheet-open="log" aria-controls="logPanel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7.5 9.5l3 2.5-3 2.5M13 15h3.5"/></svg><span>Registo</span></button>
+  </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -307,18 +333,19 @@
     </div>
   </div>
 
-  <script src="bg.js?v=22"></script>
-  <script src="js/util.js?v=22"></script>
-  <script src="js/store.js?v=22"></script>
-  <script src="js/extract-lite.js?v=22"></script>
-  <script src="js/crawler.js?v=22"></script>
-  <script src="js/value.js?v=22"></script>
-  <script src="js/deals.js?v=22"></script>
-  <script src="js/resale.js?v=22"></script>
-  <script src="js/items.js?v=22"></script>
-  <script src="js/watch.js?v=22"></script>
-  <script src="js/monitor.js?v=22"></script>
-  <script src="js/sites.js?v=22"></script>
-  <script src="js/app.js?v=22"></script>
+  <script src="bg.js?v=23"></script>
+  <script src="js/util.js?v=23"></script>
+  <script src="js/store.js?v=23"></script>
+  <script src="js/extract-lite.js?v=23"></script>
+  <script src="js/translate.js?v=23"></script>
+  <script src="js/crawler.js?v=23"></script>
+  <script src="js/value.js?v=23"></script>
+  <script src="js/deals.js?v=23"></script>
+  <script src="js/resale.js?v=23"></script>
+  <script src="js/items.js?v=23"></script>
+  <script src="js/watch.js?v=23"></script>
+  <script src="js/monitor.js?v=23"></script>
+  <script src="js/sites.js?v=23"></script>
+  <script src="js/app.js?v=23"></script>
 </body>
 </html>

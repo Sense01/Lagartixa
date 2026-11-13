@@ -7,7 +7,7 @@
 /* ---------- definições ---------- */
 const FIELDS = ['sites', 'keywords', 'maxPages', 'maxDepth', 'concurrency', 'delay', 'proxy', 'customProxy',
   'minPrice', 'maxPrice', 'minDiscount', 'shotService', 'dealMode', 'itemSort'];
-const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'useSitemap', 'wholeWord', 'caseSensitive', 'notify',
+const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'useSitemap', 'wholeWord', 'caseSensitive', 'translate', 'notify',
   'onlyGood', 'hideOut', 'onlyDrops'];
 
 function saveSettings() {
@@ -52,7 +52,19 @@ function buildProxyList() {
 
 /* ---------- pesquisas guardadas ---------- */
 const SEARCH_FIELDS = ['sites', 'keywords', 'minPrice', 'maxPrice', 'minDiscount', 'maxPages', 'maxDepth'];
-const SEARCH_CHECKS = ['wholeWord', 'caseSensitive', 'sameDomain', 'sameSection'];
+const SEARCH_CHECKS = ['wholeWord', 'caseSensitive', 'sameDomain', 'sameSection', 'translate'];
+
+/* ---------- palavras-chave traduzidas (PT · FR · ES · DE) ---------- */
+const keywordList = () => splitList($('keywords').value, /[\n,;]+/);
+
+/** por baixo do campo: o que vai ser procurado além do que escreveste */
+function renderTranslated() {
+  const groups = $('translate').checked ? Translate.expandSync(keywordList()).groups.filter((g) => g.added.length) : [];
+  $('kwTr').classList.toggle('hidden', !groups.length);
+  $('kwTr').innerHTML = groups.length
+    ? '🌍 Também procura: ' + groups.map((g) => `<b>${esc(g.term)}</b> → ${g.added.map(esc).join(', ')}`).join(' · ')
+    : '';
+}
 
 function currentConfig() {
   const c = {};
@@ -105,6 +117,7 @@ $('savedSearches').addEventListener('click', (e) => {
     toast(!s.monitor ? `🔔 "${s.name}": o Worker vai avisar-te de produtos novos e descidas de preço` : `🔕 Alertas desligados para "${s.name}"`, 5000);
   } else {
     applyConfig(s.config);
+    renderTranslated();
     toast(`Pesquisa "${s.name}" carregada`, 2000);
     if (e.target.closest('.ss-run')) {
       Store.updateSearch(s.id, { lastRun: Date.now() });
@@ -192,6 +205,10 @@ function updateStats(s, state) {
   $('statErrors').textContent = s.errors;
   $('statLinks').textContent = s.links;
   if (state) $('statStatus').textContent = state;
+  // barra inferior: quantas páginas há no histórico
+  $('navHistory').textContent = s.crawled > 999 ? '999+' : s.crawled;
+  $('navHistory').classList.toggle('hidden', !s.crawled);
+  $('historyEmpty').classList.toggle('hidden', s.crawled > 0);
   renderKeywordSummary(s);
 }
 
@@ -284,9 +301,20 @@ $('config').addEventListener('submit', async (e) => {
   $('log').textContent = '';
   try { navigator.clearAppBadge?.(); } catch {}
 
+  // palavras-chave nas 4 línguas das lojas (os termos novos são traduzidos uma vez pela IA do Worker)
+  let keywords = keywordList();
+  if ($('translate').checked && keywords.length) {
+    setRunning(true);
+    updateStats({ crawled: 0, queued: 0, items: 0, matches: 0, errors: 0, links: 0 }, 'a traduzir');
+    const tr = await Translate.expand(keywords);
+    keywords = tr.all;
+    renderTranslated();
+    tr.groups.filter((g) => g.added.length).forEach((g) => log(`🌍 ${g.term} → ${g.added.join(', ')}`));
+  }
+
   crawler = new Crawler({
     startUrls: splitList($('sites').value, /[\n\s,]+/),
-    keywords: splitList($('keywords').value, /[\n,;]+/),
+    keywords,
     wholeWord: $('wholeWord').checked,
     caseSensitive: $('caseSensitive').checked,
     minPrice: numOrNull($('minPrice').value),
@@ -380,6 +408,9 @@ $('exportItems').addEventListener('click', () => {
 /* ---------- arranque ---------- */
 loadSettings();
 ['itemSort', 'onlyGood', 'hideOut', 'onlyDrops', 'proxy', 'customProxy'].forEach((id) => $(id).addEventListener('change', saveSettings));
+$('keywords').addEventListener('input', debounce(renderTranslated, 300));
+$('translate').addEventListener('change', () => { saveSettings(); renderTranslated(); });
+renderTranslated();
 renderSearches();
 renderWatch();
 SiteDir.load();

@@ -326,6 +326,39 @@
     localStorage.removeItem('test-deal:novo|1');
   }
 
+  group('Tradução das palavras-chave (PT · FR · ES · DE)');
+  {
+    localStorage.removeItem('test-crawler-translate'); Translate._reset();
+    const low = (a) => a.map((x) => x.toLowerCase());
+    const ad = Translate.expandSync(['adaptador']);
+    ok(eq(low(ad.all), ['adaptador', 'adaptateur', 'adapter']), '"adaptador" → adaptateur (FR), adapter (DE); o espanhol é igual e não se repete', ad.all);
+    const so = low(Translate.expandSync(['souris']).all);
+    ok(['rato', 'ratón', 'raton', 'maus'].every((w) => so.includes(w)), 'escrito noutra língua ("souris") também traduz; formas sem acento incluídas', so);
+    ok(low(Translate.expandSync(['Adaptadores']).all).includes('adaptateur'), 'plural reconhecido');
+    const ph = low(Translate.expandSync(['cabo hdmi']).all);
+    ok(ph.includes('câble hdmi') && ph.includes('kabel hdmi') && ph.includes('cable hdmi'), 'várias palavras: traduz as conhecidas e mantém as outras ("cabo hdmi")', ph);
+    ok(eq(Translate.expandSync(['RTX 5070', 'lego', '40460']).all, ['RTX 5070', 'lego', '40460']), 'marcas, modelos e números ficam como estão');
+    const many = Translate.expandSync(['monitor', 'Monitor', 'adaptador']);
+    ok(new Set(low(many.all)).size === many.all.length, 'lista final sem termos repetidos');
+
+    // termos fora do dicionário: pedidos à IA uma vez e guardados no aparelho
+    let calls = 0, asked = null;
+    const ask = async (terms) => { calls++; asked = terms; return { 'dobradiça': { pt: ['dobradiça'], fr: ['charnière'], es: ['bisagra'], de: ['Scharnier'] } }; };
+    const ai = await Translate.expand(['dobradiça', 'adaptador', 'RTX 5070'], { ask });
+    ok(eq(asked, ['dobradiça']) && ['charnière', 'bisagra', 'Scharnier'].every((w) => ai.all.includes(w)), 'só o termo desconhecido vai à IA (o do dicionário e o modelo não)', { asked, all: ai.all });
+    await Translate.expand(['dobradiça'], { ask });
+    ok(calls === 1 && Translate.expandSync(['dobradiça']).all.includes('bisagra'), 'tradução da IA fica guardada (não volta a pedir)');
+    const off = await Translate.expand(['parafuso'], { ask: async () => { throw new Error('sem Worker'); } });
+    ok(eq(off.all, ['parafuso']), 'sem Worker ou sem IA: a pesquisa segue com o termo original');
+
+    // a pesquisa apanha o mesmo produto nas 4 línguas
+    const terms = Translate.expandSync(['adaptador']).all;
+    const f = { keywords: terms, wholeWord: true };
+    const hit = (name) => LiteX.matchesFilters({ name, brand: '', url: 'https://l.pt/p' }, f);
+    ok(hit('Adaptador USB-C para HDMI') && hit('Adaptateur USB-C vers HDMI') && hit('USB-C auf HDMI Adapter') && !hit('Cabo HDMI 2 m'), 'um só termo encontra o produto em PT, FR, ES e DE');
+    localStorage.removeItem('test-crawler-translate'); Translate._reset();
+  }
+
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;
   sum.className = fail ? 'fail' : 'pass';

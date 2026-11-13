@@ -28,7 +28,12 @@ const Monitor = (() => {
   function payload() {
     return {
       watch: Store.watchList().map((w) => ({ key: w.key, url: w.url, name: w.name, image: w.image, store: w.store, target: w.target, price: w.price })),
-      searches: Store.searches().filter((s) => s.monitor).map((s) => ({ id: s.id, name: s.name, config: s.config })),
+      // as pesquisas com 🌍 seguem para o Worker já com as palavras-chave nas 4 línguas
+      searches: Store.searches().filter((s) => s.monitor).map((s) => ({
+        id: s.id, name: s.name,
+        config: s.config.translate === false ? s.config
+          : { ...s.config, keywords: Translate.expandSync(splitList(s.config.keywords, /[\n,;]+/)).all.join('\n') },
+      })),
       alertMinBelow: Math.max(0, Math.min(90, +($('monBelow')?.value || 0))),
     };
   }

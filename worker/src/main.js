@@ -3,6 +3,7 @@
  *
  *   GET  /?url=https://site/pagina   proxy CORS (a app usa-o para ler as lojas)
  *   POST /deal                       "e bom negocio?" (IA com pesquisa web)
+ *   POST /translate                  palavras-chave em PT/FR/ES/DE (IA sem pesquisa web)
  *   GET  /state  POST /sync          estado dos alertas / sincronizar seguidos e pesquisas
  *   POST /run                        verificar agora (o Cron faz o mesmo de hora a hora)
  *   GET  /push/key  POST /push/subscribe  POST /push/test   notificacoes push
@@ -39,12 +40,15 @@ const BROWSER_HEADERS = {
 const MODELS = {
   // Groq: tenta pela ordem; o primeiro a que a conta tiver acesso e usado
   groq: ['openai/gpt-oss-120b', 'groq/compound', 'openai/gpt-oss-20b', 'groq/compound-mini'],
+  groqPlain: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'],   // sem pesquisa web (traducao): o modelo pequeno primeiro
   xai: 'grok-4.7',
   anthropic: 'claude-haiku-5-5',
 };
 const DEAL_MAX_SEARCHES = 3;
 const DEAL_CACHE_SECONDS = 12 * 3600;
 const DEAL_DAILY_LIMIT = 60;          // avaliacoes por dia (protege a quota da API)
+const TRANSLATE_DAILY_LIMIT = 100;    // pedidos de traducao por dia (cada um leva varios termos; ficam em cache 30 dias)
+const TRANSLATE_LANGS = ['pt', 'fr', 'es', 'de'];
 
 const MONITOR = {
   maxFetches: 38,                     // plano gratis: 50 sub-pedidos por execucao (fica margem para push)
@@ -89,6 +93,7 @@ export default {
     const path = reqUrl.pathname.replace(/\/+$/, '') || '/';
     const api = {
       '/deal': () => handleDeal(request, env, ctx, cors),
+      '/translate': () => handleTranslate(request, env, ctx, cors),
       '/state': () => handleState(env, cors),
       '/sync': () => handleSync(request, env, cors),
       '/history': () => handleHistory(request, env, cors),
@@ -622,7 +627,7 @@ async function handleDeal(request, env, ctx, cors) {
   const store = String(item.store || '').slice(0, 80);
   const country = /^[A-Z]{2}$/.test(item.country || '') ? item.country : 'PT';
 
-  const cacheKey = new Request('https://deal-cache.local/' + encodeURIComponent(`${name}|${price}|${country}`.toLowerCase()));
+  const cacheKey = new Request('https://deal-cache.local/v2/' + encodeURIComponent(`${name}|${price}|${country}`.toLowerCase()));
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return json({ ...(await hit.json()), cached: true }, 200, cors);
@@ -647,14 +652,26 @@ async function handleDeal(request, env, ctx, cors) {
     (h && h.points > 1 ? `\nOur own price tracking at this store since ${h.since}: min ${h.min}, max ${h.max} (${h.points} observations).` : '') +
     (others.length ? `\nWe also saw it at: ${others.map((o) => `${o.store} ${o.price} (${o.date})`).join('; ')}.` : '') +
     `\nBuyer country: ${country}\n\n` +
-    'Search the web to judge whether this is a good deal. Find: the typical current price in other ' +
-    'shops in this country/EU, the lowest current price you can find, and the official launch/retail ' +
-    'price (RRP) if it exists (e.g. for LEGO sets use the set number). Prefer price comparison sites ' +
-    'and official stores. When done searching, write your final answer as plain text (do NOT call any ' +
+    'Search the web to judge whether this is a good deal. Find current prices of this product in other ' +
+    'shops in this country/EU, and the official launch/retail price (RRP) if it exists (e.g. for LEGO ' +
+    'sets use the set number). Prefer price comparison sites and official stores.\n' +
+    'STRICT RULE - every price you report must be paired with the exact URL of the page where you saw ' +
+    'that price:\n' +
+    '- "prices" lists each offer you actually saw: the shop, the price, and the URL of that exact ' +
+    'product page (copied from your search results, never guessed or built by you).\n' +
+    '- Only offers for exactly the same product: same brand, model, size/length/capacity/pack ' +
+    'quantity, new condition. Do not list other variants, used items or accessories.\n' +
+    '- If you cannot give the exact URL for a price, leave that price out. A price without its URL ' +
+    'is discarded. Do not report a "lowest price" yourself: it is taken from "prices".\n' +
+    '- "rrp" needs "rrpUrl" (the page that states it), otherwise use null.\n' +
+    '- The summary may only mention prices that are in "prices", "rrp" or given above.\n' +
+    'When done searching, write your final answer as plain text (do NOT call any ' +
     'tool named json or any other tool for the answer) containing ONLY one JSON object:\n' +
-    '{"verdict":"bom"|"razoavel"|"caro"|"incerto","score":0-100,"typicalPrice":number|null,' +
-    '"lowestPrice":number|null,"rrp":number|null,"currency":"EUR","summary":"1-2 short sentences in ' +
-    'European Portuguese explaining the verdict with the numbers","sources":[{"title":"...","url":"..."}]}\n' +
+    '{"verdict":"bom"|"razoavel"|"caro"|"incerto","score":0-100,' +
+    '"prices":[{"store":"shop name","price":number,"url":"https://exact-page-with-this-price"}],' +
+    '"typicalPrice":number|null,"rrp":number|null,"rrpUrl":string|null,"currency":"EUR",' +
+    '"summary":"1-2 short sentences in European Portuguese explaining the verdict with the numbers"}\n' +
+    'typicalPrice: the usual price among the offers in "prices". ' +
     'score: 100 = exceptional deal, 50 = normal price, 0 = clearly overpriced. Use "incerto" if you ' +
     'could not find reliable comparable prices or you are not sure it is the same product.';
 
@@ -669,8 +686,7 @@ async function handleDeal(request, env, ctx, cors) {
   const text = out.text || '';
   let result = extractVerdict(text) || { verdict: 'incerto', score: null, summary: cleanText(text).slice(-400) };
   if (result.summary) result.summary = cleanText(String(result.summary));
-  if (!Array.isArray(result.sources) || !result.sources.length) result.sources = (out.sources || []).slice(0, 4);
-  result.sources = result.sources.filter((x) => /^https?:\/\//i.test(x?.url || '')).slice(0, 5);
+  result = await pairPrices(result, { trace: out.trace, store, price, oldPrice: Number(item.oldPrice) || null, extraSources: out.sources });
   result.checkedAt = new Date().toISOString();
   result.searches = out.searches ?? null;
   result.provider = provider.name + (out.model ? ` (${out.model})` : '');
@@ -680,6 +696,82 @@ async function handleDeal(request, env, ctx, cors) {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': `max-age=${DEAL_CACHE_SECONDS}` },
   })));
   return json(result, 200, cors);
+}
+
+/* ---------- regra: cada preco citado tem o link da pagina onde foi visto ---------- */
+
+const baseHost = (h) => h.split('.').slice(-2).join('.');
+
+/** ofertas validas da resposta da IA: preco > 0, link http(s), loja diferente da nossa, dominio que apareceu na pesquisa */
+function validOffers(list, trace, ownStore) {
+  const seen = String(trace || '').toLowerCase();
+  const out = [];
+  for (const x of Array.isArray(list) ? list : []) {
+    const price = Math.round(Number(x?.price) * 100) / 100;
+    const url = String(x?.url || '').trim().slice(0, 600);
+    const host = /^https?:\/\/[^\s/]+\.[^\s/]+/i.test(url) ? hostOf(url) : '';
+    if (!(price > 0) || !isFinite(price) || !host) continue;
+    if (ownStore && baseHost(host) === baseHost(ownStore)) continue;
+    // com o registo da pesquisa: um dominio que nao aparece la foi inventado pelo modelo
+    if (seen.length > 40 && !seen.includes(baseHost(host))) continue;
+    if (out.some((o) => o.url === url)) continue;
+    out.push({ store: String(x.store || host).slice(0, 60), price, url });
+  }
+  return out.sort((a, b) => a.price - b.price).slice(0, 6);
+}
+
+/** o link mostra mesmo este preco? true = sim; false = nao deu para confirmar; null = a pagina nao existe */
+async function checkPriceLink(o) {
+  try {
+    const rb = await fetch(new URL(o.url).origin + '/robots.txt', { headers: BROWSER_HEADERS, cf: { cacheTtl: 86400 }, signal: AbortSignal.timeout(4000) });
+    const rt = rb.ok ? await rb.text() : '';
+    if (!/<html/i.test(rt.slice(0, 500)) && !LiteX.robotsAllows(o.url, LiteX.parseRobots(rt))) return false;
+    const res = await fetch(o.url, { headers: BROWSER_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) });
+    if (res.status === 404 || res.status === 410) return null;
+    if (!res.ok) return false;
+    const html = (await res.text()).slice(0, 400000);
+    const [i, d] = o.price.toFixed(2).split('.');
+    return html.includes(`${i},${d}`) || html.includes(`${i}.${d}`);
+  } catch { return false; }
+}
+
+async function pairPrices(result, { trace, store, price, oldPrice, extraSources }) {
+  const offers = validOffers(result.prices, trace, store);
+  // confirma o link do preco mais baixo (ate 2 tentativas: um link morto sai e passa ao seguinte)
+  for (let n = 0; n < 2 && offers.length; n++) {
+    const v = await checkPriceLink(offers[0]);
+    if (v === null) { offers.shift(); continue; }
+    offers[0].verified = v;
+    break;
+  }
+  const num = (v) => (Number(v) > 0 && isFinite(Number(v)) ? Number(v) : null);
+  const rrpUrl = String(result.rrpUrl || '');
+  const rrp = /^https?:\/\//i.test(rrpUrl) ? num(result.rrp) : null;
+  const low = offers[0] || null;
+  const mid = offers.length ? offers[offers.length >> 1].price : null;
+  const out = {
+    ...result,
+    prices: offers,
+    lowestPrice: low ? low.price : null, lowestPriceUrl: low ? low.url : null, lowestPriceStore: low ? low.store : null,
+    lowestVerified: low ? low.verified === true : null,
+    typicalPrice: offers.length ? (num(result.typicalPrice) || mid) : null,
+    rrp, rrpUrl: rrp ? rrpUrl.slice(0, 600) : null,
+  };
+  if (!offers.length && !rrp) {
+    out.verdict = 'incerto'; out.score = null;
+    out.summary = 'Não encontrei preços com link de origem para comparar.';
+  } else {
+    // o resumo so pode citar precos que tem link (ou os que a app enviou)
+    const allowed = [price, oldPrice, out.typicalPrice, rrp, ...offers.map((o) => o.price)].filter((v) => v > 0);
+    const cited = [...String(out.summary || '').matchAll(/(\d{1,3}(?:[.\s]\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:€|EUR|euros?)/gi)].map((m) => LiteX.parsePrice(m[1]));
+    if (cited.some((c) => c > 0 && !allowed.some((a) => Math.abs(a - c) <= Math.max(0.06, a * 0.01)))) {
+      out.summary = (out.typicalPrice ? `Preço típico noutras lojas: ${fmt(out.typicalPrice)}. ` : '') +
+        (low ? `Mais baixo: ${fmt(low.price)} em ${low.store}.` : rrp ? `PVP: ${fmt(rrp)}.` : '');
+    }
+  }
+  const links = offers.map((o) => ({ title: `${o.store} - ${fmt(o.price)}`, url: o.url }));
+  out.sources = [...links, ...(extraSources || []).filter((x) => /^https?:\/\//i.test(x?.url || '') && !links.some((l) => l.url === x.url))].slice(0, 6);
+  return out;
 }
 
 async function askProvider(p, prompt, country) {
@@ -745,7 +837,7 @@ async function askGroq(key, prompt) {
       const tools = msg.executed_tools || [];
       const text = msg.content || '';
       const urls = [...new Set((text.match(/https?:\/\/[^\s)\]"'<>]+/g) || []))].map((u) => ({ title: u, url: u }));
-      return { text, sources: [...collectSources(tools), ...urls].slice(0, 6), searches: tools.length || null, model };
+      return { text, sources: [...collectSources(tools), ...urls].slice(0, 6), searches: tools.length || null, model, trace: tools.length ? JSON.stringify(tools) : '' };
     }
   }
   throw rateErr || lastErr || new Error('Nenhum modelo Groq disponivel');
@@ -761,7 +853,7 @@ async function askXai(key, prompt) {
   let text = data.output_text || '';
   if (!text) for (const item of data.output || []) for (const c of item.content || []) if (c.type === 'output_text' && c.text) text += c.text;
   const searches = (data.output || []).filter((i) => /search/i.test(i.type || '')).length || null;
-  return { text, sources: collectSources(data.output || data.citations || []).slice(0, 6), searches };
+  return { text, sources: collectSources(data.output || data.citations || []).slice(0, 6), searches, trace: searches ? JSON.stringify([data.output, data.citations]) : '' };
 }
 
 async function askAnthropic(key, prompt, country) {
@@ -777,7 +869,92 @@ async function askAnthropic(key, prompt, country) {
   const blocks = data.content || [];
   const text = blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   const sources = collectSources(blocks.filter((b) => b.type === 'web_search_tool_result')).slice(0, 6);
-  return { text, sources, searches: data.usage?.server_tool_use?.web_search_requests ?? null };
+  const results = blocks.filter((b) => b.type === 'web_search_tool_result');
+  return { text, sources, searches: data.usage?.server_tool_use?.web_search_requests ?? null, trace: results.length ? JSON.stringify(results) : '' };
+}
+
+/* ======================================================================
+ * Traducao das palavras-chave (PT / FR / ES / DE)
+ * ==================================================================== */
+
+/** pergunta simples a IA, sem ferramentas de pesquisa (barata) */
+async function askPlain(p, prompt) {
+  if (p.name === 'anthropic') {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODELS.anthropic, max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
+    });
+    return ((await readJson(res)).content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  }
+  // Groq e xAI: API compativel com a da OpenAI
+  const url = p.name === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
+  let err;
+  for (const model of p.name === 'groq' ? MODELS.groqPlain : [MODELS.xai]) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p.key}` },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0 }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return data.choices?.[0]?.message?.content || '';
+    err = new Error(data?.error?.message || `HTTP ${res.status}`);
+    if (res.status === 429) err.retryAfter = +(res.headers.get('retry-after') || 20);
+  }
+  throw err || new Error('Nenhum modelo disponivel');
+}
+
+async function handleTranslate(request, env, ctx, cors) {
+  if (request.method !== 'POST') throw new HttpError('Use POST', 405);
+  const body = await request.json().catch(() => ({}));
+  const terms = [...new Set((Array.isArray(body.terms) ? body.terms : []).map((t) => String(t).replace(/["\\<>\n\r]/g, ' ').trim().slice(0, 60)).filter(Boolean))].slice(0, 12);
+  if (!terms.length) throw new HttpError('Faltam os termos');
+  const cache = caches.default;
+  const keyOf = (t) => new Request('https://translate-cache.local/v1/' + encodeURIComponent(t.toLowerCase()));
+  const translations = {};
+  const missing = [];
+  for (const t of terms) {
+    const hit = await cache.match(keyOf(t));
+    if (hit) translations[t] = await hit.json(); else missing.push(t);
+  }
+  if (missing.length) {
+    const provider = pickProvider(env);
+    if (!provider) throw new HttpError('Falta a chave da IA no Worker (AI_API_KEY)', 500);
+    const dayKey = `tr:${today()}`;
+    let used = 0;
+    if (env.CRAWLER_KV) {
+      used = Number(await env.CRAWLER_KV.get(dayKey)) || 0;
+      if (used >= TRANSLATE_DAILY_LIMIT) throw new HttpError(`Limite diario de ${TRANSLATE_DAILY_LIMIT} traducoes atingido`, 429);
+    }
+    const prompt =
+      'Translate these online-shop search terms into Portuguese (Portugal), French, Spanish (Spain) and German, ' +
+      'using the words shops in each country use in product names. Keep brand names, model codes and numbers ' +
+      'unchanged. Give 1 or 2 common forms per language, singular, lowercase.\n' +
+      `Terms: ${JSON.stringify(missing)}\n` +
+      'Answer with ONLY one JSON object, with the terms exactly as given as keys:\n' +
+      '{"<term>":{"pt":["..."],"fr":["..."],"es":["..."],"de":["..."]}}';
+    let text;
+    try { text = await askPlain(provider, prompt); } catch (e) {
+      const err = new HttpError(`${provider.name}: ${e.message}`, e.retryAfter ? 429 : 502);
+      if (e.retryAfter) err.retryAfter = Math.min(120, Math.ceil(e.retryAfter));
+      throw err;
+    }
+    let parsed = {};
+    try { parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)); } catch {}
+    for (const t of missing) {
+      const x = parsed && typeof parsed === 'object' ? parsed[t] : null;
+      if (!x || typeof x !== 'object') continue;
+      const clean = {};
+      for (const l of TRANSLATE_LANGS) {
+        clean[l] = (Array.isArray(x[l]) ? x[l] : [x[l]]).filter((v) => typeof v === 'string')
+          .map((v) => v.replace(/[<>"\n\r]/g, ' ').trim().slice(0, 60)).filter(Boolean).slice(0, 3);
+      }
+      translations[t] = clean;
+      ctx.waitUntil(cache.put(keyOf(t), new Response(JSON.stringify(clean), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=2592000' } })));
+    }
+    if (env.CRAWLER_KV) ctx.waitUntil(env.CRAWLER_KV.put(dayKey, String(used + 1), { expirationTtl: 2 * 86400 }));
+  }
+  return json({ translations }, 200, cors);
 }
 
 // remove marcas de citacao (parenteses especiais U+3010/U+3011) e espacos a mais

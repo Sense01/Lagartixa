@@ -335,17 +335,14 @@ const Resale = (() => {
       $('rsAdd').reset();
       render();
     });
-    $('goResale')?.addEventListener('click', () => {
-      $('resalePanel').open = true;
-      $('resalePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    $('goResale')?.addEventListener('click', () => Sheets.open('resale'));
     $('rsRun').addEventListener('click', run);
     $('rsFetch').addEventListener('click', fetchPrices);
     $('rsTip')?.addEventListener('click', (e) => {
       const b = e.target.closest('[data-rs]');
       if (!b) return;
       if (b.dataset.rs === 'ia') fetchPrices();
-      else SiteDir.showResale();
+      else { Sheets.close(); SiteDir.showResale(); }
     });
     $('rsReset').addEventListener('click', () => {
       saveParams({ ...DEFAULTS });

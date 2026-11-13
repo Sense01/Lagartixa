@@ -127,8 +127,10 @@ console.log('\nAvaliacao de negocio');
   let sentPrompt = '';
   routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
     sentPrompt = JSON.parse(o.body).messages[0].content;
-    return new Response(JSON.stringify({ choices: [{ message: { content: 'excertos {"x":1}\n{"verdict":"bom","score":80,"typicalPrice":12.49,"lowestPrice":8.91,"rrp":14.99,"summary":"Bom preço 【1†L2】.","sources":[]}' } }] }));
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'excertos {"x":1}\n{"verdict":"bom","score":80,"prices":[{"store":"Fnac","price":12.49,"url":"https://www.fnac.pt/lego-rosas"},{"store":"Worten","price":11.99,"url":"https://www.worten.pt/p/rosas"}],"typicalPrice":12.49,"rrp":14.99,"rrpUrl":"https://www.lego.com/pt-pt/product/40460","summary":"Bom preço 【1†L2】."}' } }] }));
   } });
+  routes.push({ match: (u) => u.endsWith('/robots.txt'), reply: () => new Response('User-agent: *\nAllow: /\n') });
+  routes.push({ match: (u) => u.includes('worten.pt/p/rosas'), reply: () => new Response('<h1>LEGO Rosas</h1><span class="price">11,99 €</span>') });
   const kvs = makeKV();
   const env = { CRAWLER_KV: kvs, QUALQUER_NOME: 'gsk_test' };
   const body = { name: 'LEGO Rosas 40460', price: 8.91, history: { min: 9.5, max: 12, points: 4, since: '2026-10-01' }, otherStores: [{ store: 'fnac.pt', price: 11.99, date: '2026-11-08' }] };
@@ -136,26 +138,33 @@ console.log('\nAvaliacao de negocio');
   const j = await r.json();
   ok(r.status === 200 && j.verdict === 'bom' && j.score === 80, 'veredicto extraido da resposta da IA');
   ok(!/【/.test(j.summary), 'marcas de citacao removidas do resumo');
+  ok(j.lowestPrice === 11.99 && j.lowestPriceUrl === 'https://www.worten.pt/p/rosas' && j.lowestPriceStore === 'Worten', 'preco mais baixo vem sempre com o link da pagina', JSON.stringify(j));
+  ok(j.lowestVerified === true, 'o Worker abriu o link e confirmou o preco na pagina');
+  ok(j.prices.length === 2 && j.prices.every((o) => o.price > 0 && /^https:/.test(o.url)) && j.rrp === 14.99 && /lego\.com/.test(j.rrpUrl), 'cada preco citado tem o seu link (ofertas e PVP)');
+  ok(/exact URL/.test(sentPrompt) && /"prices":\[\{"store"/.test(sentPrompt), 'o pedido a IA exige o par preco + link');
   ok(/Our own price tracking/.test(sentPrompt) && /fnac\.pt 11\.99/.test(sentPrompt), 'historico proprio e outras lojas enviados no pedido');
   ok(kvs.m.get(`deals:${new Date().toISOString().slice(0, 10)}`) === '1', 'contador diario incrementado');
   // a Groq rejeita o pedido quando o modelo tenta chamar uma ferramenta inexistente ('json'): repetir
   let groqCalls = 0, choices = [];
+  const shop = { match: (u) => u.startsWith('https://loja.pt/'), reply: () => new Response('<html>loja</html>') };
   routes.length = 0;
+  routes.push(shop);
   routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
     groqCalls++; choices.push(JSON.parse(o.body).tool_choice);
     if (groqCalls === 1) return new Response(JSON.stringify({ error: { message: "tool call validation failed: attempted to call tool 'json' which was not in request.tools", code: 'tool_use_failed' } }), { status: 400 });
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"razoavel","score":55,"summary":"Preco normal.","sources":[]}' } }] }));
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"razoavel","score":55,"prices":[{"store":"Loja","price":705,"url":"https://loja.pt/u1"}],"summary":"Preco normal."}' } }] }));
   } });
   const rg = await W.fetch(req('/deal', { method: 'POST', body: { ...body, name: 'Snapmaker U1', price: 699 } }), env, waitCtx);
   const jg = await rg.json();
   ok(rg.status === 200 && jg.verdict === 'razoavel' && groqCalls === 2 && choices[1] === 'auto', "erro 'tool json' da Groq: repete e responde", JSON.stringify({ s: rg.status, groqCalls, choices }));
   groqCalls = 0;
   routes.length = 0;
+  routes.push(shop);
   routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
     groqCalls++;
     const m = JSON.parse(o.body).model;
     if (m === 'openai/gpt-oss-120b') return new Response(JSON.stringify({ error: { message: "tool call validation failed: attempted to call tool 'json'", code: 'tool_use_failed' } }), { status: 400 });
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"bom","score":70,"summary":"Ok.","sources":[]}' } }] }));
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"bom","score":70,"prices":[{"store":"Loja","price":750,"url":"https://loja.pt/u1"}],"summary":"Ok."}' } }] }));
   } });
   const rh = await W.fetch(req('/deal', { method: 'POST', body: { ...body, name: 'Snapmaker U1 B', price: 698 } }), env, waitCtx);
   const jh = await rh.json();
@@ -173,6 +182,27 @@ console.log('\nAvaliacao de negocio');
   kvs.m.set(`deals:${new Date().toISOString().slice(0, 10)}`, '60');
   const r2 = await W.fetch(req('/deal', { method: 'POST', body: { ...body, price: 9.99 } }), env, waitCtx);
   ok(r2.status === 429 && /Limite diario/.test((await r2.json()).error), 'limite diario devolve 429 com mensagem clara');
+}
+
+/* ======================================================================== */
+console.log('\nTraducao das palavras-chave');
+{
+  routes.length = 0;
+  let asked = 0, sent = null;
+  routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
+    asked++; sent = JSON.parse(o.body);
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Aqui esta:\n{"dobradiça":{"pt":["dobradiça"],"fr":["charnière"],"es":["bisagra"],"de":["Scharnier","<b>x"]},"lego":{"pt":"lego","fr":["lego"],"es":["lego"],"de":["lego"]}}' } }] }));
+  } });
+  const kvs = makeKV();
+  const env = { CRAWLER_KV: kvs, AI_API_KEY: 'gsk_x' };
+  const r = await W.fetch(req('/translate', { method: 'POST', body: { terms: ['dobradiça', 'lego', 'dobradiça'] } }), env, waitCtx);
+  const j = await r.json();
+  ok(r.status === 200 && j.translations['dobradiça'].fr[0] === 'charnière' && j.translations['dobradiça'].de[0] === 'Scharnier', '/translate devolve o termo nas 4 linguas', JSON.stringify(j));
+  ok(!JSON.stringify(j).includes('<') && j.translations.lego.pt[0] === 'lego', 'resposta da IA limpa (sem HTML; texto solto vira lista)');
+  ok(asked === 1 && !sent.tools && sent.model === 'openai/gpt-oss-20b' && /"dobradi/.test(sent.messages[0].content), 'um so pedido, sem pesquisa web, no modelo pequeno');
+  ok(kvs.m.get(`tr:${new Date().toISOString().slice(0, 10)}`) === '1', 'contador diario de traducoes');
+  ok((await W.fetch(req('/translate', { method: 'POST', body: { terms: [] } }), env, waitCtx)).status === 400, 'sem termos: 400');
+  ok((await W.fetch(req('/translate', { method: 'POST', body: { terms: ['x'] }, origin: 'https://outro.site' }), env, waitCtx)).status === 403, '/translate so responde a tua app');
 }
 
 /* ======================================================================== */
@@ -320,10 +350,40 @@ console.log('\nAuditoria: corrida com a sincronizacao, robots, token, fontes');
 
   // fontes da IA: so http(s)
   routes.length = 0;
-  routes.push({ match: (u) => u.includes('groq.com'), reply: () => new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"bom","score":80,"summary":"ok","sources":[{"title":"mau","url":"javascript:alert(1)"},{"title":"bom","url":"https://kuantokusta.pt/x"}]}' } }] })) });
+  routes.push({ match: (u) => u.includes('groq.com'), reply: () => new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"bom","score":80,"summary":"ok","prices":[{"store":"mau","price":3,"url":"javascript:alert(1)"},{"store":"bom","price":12,"url":"https://kuantokusta.pt/x"}]}' } }] })) });
+  routes.push({ match: (u) => u.includes('kuantokusta.pt'), reply: () => new Response('ok') });
   env = { CRAWLER_KV: makeKV(), AI_API_KEY: 'gsk_x' };
   const d = await (await W.fetch(req('/deal', { method: 'POST', body: { name: 'Produto fontes', price: 10 } }), env, waitCtx)).json();
-  ok(d.sources.length === 1 && d.sources[0].url.startsWith('https://'), 'fontes da IA: links javascript: removidos', d.sources);
+  ok(d.sources.length === 1 && d.sources[0].url.startsWith('https://') && d.lowestPrice === 12, 'links javascript: removidos (e o preco que traziam tambem)', d.sources);
+
+  // o caso do cabo: a IA diz "mais baixo 1,98 EUR" sem link -> esse preco nao passa
+  const groq = (content, tools) => ({ match: (u) => u.includes('groq.com'), reply: () => new Response(JSON.stringify({ choices: [{ message: { content, executed_tools: tools } }] })) });
+  const deal = async (name) => (await W.fetch(req('/deal', { method: 'POST', body: { name, price: 5.9, oldPrice: 13.9, store: 'globaldata.pt' } }), env, waitCtx)).json();
+  routes.length = 0;
+  routes.push(groq('{"verdict":"bom","score":80,"typicalPrice":7.5,"lowestPrice":1.98,"prices":[{"store":"PTec","price":7.49,"url":"https://ptec.pt/cabo"},{"store":"Coolmatica","price":7.9,"url":"https://coolmatica.pt/cabo"},{"store":"Sem link","price":1.98}],"summary":"O preço de 5,90 € está abaixo do típico (~7,5 €) e acima do mínimo encontrado (1,98 €)."}'));
+  routes.push({ match: (u) => /ptec\.pt|coolmatica\.pt/.test(u), reply: (u) => new Response(u.endsWith('robots.txt') ? '' : '<b>7,49 €</b>') });
+  const c1 = await deal('Cabo Lightning Nanocable 1M');
+  ok(c1.lowestPrice === 7.49 && c1.lowestPriceUrl === 'https://ptec.pt/cabo' && c1.prices.length === 2, 'preco mais baixo sem link e descartado (fica o mais baixo COM link)', JSON.stringify(c1.prices));
+  ok(!/1,98/.test(c1.summary) && /7,49/.test(c1.summary), 'resumo que cita um preco sem link e reescrito', c1.summary);
+
+  // dominio que nao apareceu na pesquisa = link inventado
+  routes.length = 0;
+  routes.push(groq('{"verdict":"bom","score":80,"prices":[{"store":"Inventada","price":1.98,"url":"https://loja-inventada.pt/cabo"},{"store":"PTec","price":7.49,"url":"https://www.ptec.pt/cabo"}],"summary":"Bom."}',
+    [{ type: 'search', output: 'resultados: https://ptec.pt/cabo-lightning PTec 7,49 EUR; https://cooptec.pt/x' }]));
+  routes.push({ match: (u) => /ptec\.pt|inventada/.test(u), reply: () => new Response('nada') });
+  const c2 = await deal('Cabo Lightning B');
+  ok(c2.prices.length === 1 && c2.lowestPrice === 7.49 && c2.lowestVerified === false, 'link de um dominio que nao veio da pesquisa e descartado; sem confirmacao fica "por confirmar"', JSON.stringify(c2.prices));
+
+  // link morto (404) sai; sem nenhum preco com link -> "incerto"
+  routes.length = 0;
+  routes.push(groq('{"verdict":"bom","score":90,"prices":[{"store":"Morta","price":2,"url":"https://morta.pt/x"},{"store":"Viva","price":6,"url":"https://viva.pt/x"}],"summary":"Bom."}'));
+  routes.push({ match: (u) => u.includes('viva.pt'), reply: () => new Response('6,00 €') });
+  const c3 = await deal('Cabo Lightning C');
+  ok(c3.lowestPrice === 6 && c3.lowestPriceStore === 'Viva' && c3.lowestVerified === true, 'link que da 404 e descartado e passa ao seguinte', JSON.stringify(c3.prices));
+  routes.length = 0;
+  routes.push(groq('{"verdict":"bom","score":90,"typicalPrice":7.5,"lowestPrice":1.98,"rrp":9.99,"summary":"Bom negocio, minimo 1,98 €."}'));
+  const c4 = await deal('Cabo Lightning D');
+  ok(c4.verdict === 'incerto' && c4.lowestPrice === null && c4.typicalPrice === null && c4.rrp === null && !/1,98/.test(c4.summary), 'sem precos com link: nenhum preco e mostrado e o veredicto e "incerto"', JSON.stringify(c4));
 }
 
 console.log(`\n${passed} passaram, ${failed} falharam\n`);

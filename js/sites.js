@@ -162,7 +162,7 @@ const SiteDir = (() => {
     const st = collectionStarts(col, $('colCountry').value);
     if (!st.length) return toast('Nenhuma loja desta categoria no país escolhido', 3000);
     $('sites').value = st.map((x) => x.url).join('\n');
-    if (col.keyword && !$('keywords').value.trim()) $('keywords').value = col.keyword;
+    if (col.keyword && !$('keywords').value.trim()) { $('keywords').value = col.keyword; $('keywords').dispatchEvent(new Event('input')); }
     const needSitemap = st.some((x) => x.site.sitemap);
     if (needSitemap && $('useSitemap')) $('useSitemap').checked = true;
     const stores = [...new Set(st.map((x) => x.site.name))];

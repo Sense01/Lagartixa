@@ -49,6 +49,44 @@ function log(msg) {
   $('log').scrollTop = $('log').scrollHeight;
 }
 
+/* ---------- folhas da barra inferior (Simular revenda, Histórico, Registo) ---------- */
+const Sheets = (() => {
+  const all = () => [...document.querySelectorAll('.sheet')];
+  const current = () => all().find((el) => !el.classList.contains('hidden'))?.dataset.sheet || null;
+  let opener = null;
+
+  function show(name) {
+    for (const el of all()) el.classList.toggle('hidden', el.dataset.sheet !== name);
+    document.querySelectorAll('[data-sheet-open]').forEach((b) => b.setAttribute('aria-expanded', String(b.dataset.sheetOpen === name)));
+    $('sheetBackdrop')?.classList.toggle('hidden', !name);
+    document.body.classList.toggle('sheet-open', !!name);
+  }
+  function open(name) {
+    if (!current()) opener = document.activeElement;
+    show(name);
+    const el = all().find((x) => x.dataset.sheet === name);
+    if (name === 'log') { const b = el.querySelector('.sheet-body'); b.scrollTop = b.scrollHeight; }   // o registo abre no fim (o mais recente)
+    el?.querySelector('.sheet-close')?.focus({ preventScroll: true });
+    document.dispatchEvent(new CustomEvent('sheet', { detail: name }));
+  }
+  function close() {
+    if (!current()) return;
+    show(null);
+    opener?.focus?.({ preventScroll: true });
+  }
+  const toggle = (name) => (current() === name ? close() : open(name));
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', (e) => {
+      const o = e.target.closest('[data-sheet-open]');
+      if (o) return toggle(o.dataset.sheetOpen);
+      if (e.target.closest('[data-sheet-close]') || e.target.id === 'sheetBackdrop') close();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+  return { open, close, toggle, current };
+})();
+
 function toast(msg, ms = 4000) {
   const el = $('toast');
   el.textContent = msg;

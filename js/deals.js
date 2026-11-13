@@ -28,13 +28,20 @@ function dealHtml(d) {
   if (d.loading) return `<div class="deal-box loading">${d.cooldown ? '⏳ A IA está em cooldown — continua sozinha daqui a pouco' : '🔎 A pesquisar preços na web…'}</div>`;
   if (d.error) return `<div class="deal-box v-caro">⚠️ ${esc(d.error)}</div>`;
   const [label, cls] = VERDICTS[verdictKey(d.verdict)] || VERDICTS.incerto;
+  // regra: um preço só aparece com o link da página onde foi visto
+  const link = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener">${text}</a>`;
+  const okUrl = (u) => /^https?:\/\//i.test(u || '');
+  const low = d.lowestPrice != null && okUrl(d.lowestPriceUrl);
   const nums = [
     d.typicalPrice != null && `típico <b>${fmtPrice(+d.typicalPrice)}</b>`,
-    d.lowestPrice != null && `mais baixo <b>${fmtPrice(+d.lowestPrice)}</b>`,
-    d.rrp != null && `PVP <b>${fmtPrice(+d.rrp)}</b>`,
+    low && `mais baixo ${link(d.lowestPriceUrl, `<b>${fmtPrice(+d.lowestPrice)}</b> em ${esc(d.lowestPriceStore || hostOf(d.lowestPriceUrl))} ↗`)}` +
+      `<small class="deal-ok ${d.lowestVerified ? 'yes' : ''}" title="${d.lowestVerified ? 'O Worker abriu a página e encontrou este preço' : 'O Worker não conseguiu confirmar o preço na página (loja protegida ou preço carregado por JavaScript): abre o link para ver'}">${d.lowestVerified ? '✓ confirmado' : 'por confirmar'}</small>`,
+    d.rrp != null && (okUrl(d.rrpUrl) ? `PVP ${link(d.rrpUrl, `<b>${fmtPrice(+d.rrp)}</b> ↗`)}` : !d.prices && `PVP <b>${fmtPrice(+d.rrp)}</b>`),
   ].filter(Boolean).join(' · ');
-  const src = (d.sources || []).slice(0, 3).map((s) =>
-    `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(hostOf(s.url) || s.url)}</a>`).join(' ');
+  const offers = (d.prices || []).filter((o) => okUrl(o.url));
+  const src = offers.length
+    ? offers.slice(0, 5).map((o) => link(o.url, `${esc(o.store || hostOf(o.url))} <b>${fmtPrice(+o.price)}</b>`)).join(' ')
+    : (d.sources || []).filter((x) => okUrl(x.url)).slice(0, 3).map((x) => link(x.url, esc(hostOf(x.url) || x.url))).join(' ');
   return `<div class="deal-box ${cls}">
       <div class="deal-head"><span class="verdict">${label}</span>${d.score != null ? `<span class="score">${Math.round(d.score)}/100</span>` : ''}</div>
       ${nums ? `<div class="deal-nums">${nums}</div>` : ''}

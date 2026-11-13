@@ -17,6 +17,9 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
   tabuleiro, livros, bricolage — todas as lojas dessa categoria de uma vez (só Portugal, só França ou ambos). Cada loja recebe
   a sua parte das páginas e a fila alterna entre lojas.
 - Um ou vários sites, palavras-chave (singular e plural contam como iguais), preço mínimo/máximo e desconto mínimo.
+- **🌍 Tradução automática das palavras-chave** (PT · FR · ES · DE): "adaptador" procura também "adaptateur" e "adapter", num
+  só resultado. Dicionário incluído (`js/translate.js`); os termos que não conhece são traduzidos uma vez pela IA do Worker
+  (`POST /translate`, sem pesquisa web) e ficam guardados. As pesquisas com 🔔 seguem para o Worker já traduzidas.
 - **Sitemap da loja** (opcional): encontra produtos que as listas não mostram (ex.: Rádio Popular, que só mostra 12 por categoria).
 - **Pesquisas guardadas** (💾): repete uma pesquisa com um toque; ativa 🔔 para alertas automáticos.
 - **Ficar dentro da secção**: ao começar em `/componentes/` só segue links dessa secção.
@@ -35,6 +38,10 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
   antes da "promoção" — nesses casos o preço antigo da loja deixa de contar.
 - Filtros **só abaixo da média**, **esconder esgotados**, **só preços que desceram**; falsos produtos (filtros, campanhas,
   links para categorias) e preços antigos impossíveis são descartados.
+- **Preço citado = link de origem**: a IA tem de dar, para cada preço, o endereço da página onde o viu. O Worker descarta preços
+  sem link, links de domínios que não apareceram na pesquisa e páginas que já não existem; o "mais baixo" é calculado a partir
+  desses pares e o Worker abre a página para confirmar o preço (✓ confirmado / por confirmar).
+- **Barra inferior fixa**: Simular revenda, Histórico de achados e Registo abrem por cima da página, sempre à mão.
 - **💡 É bom negócio?** — IA com pesquisa web (Groq/xAI/Anthropic) dá veredicto, preço típico, mais baixo e PVP; por omissão
   só ao tocar no botão (há um modo automático). Uma avaliação por modelo: as variantes de cor herdam o resultado. Quando a
   Groq atinge o limite por minuto, a app espera ("a IA está em cooldown") e continua.
@@ -71,6 +78,7 @@ Testar localmente: `python3 -m http.server 8000` e abrir `http://localhost:8000`
 | `js/crawler.js` | Motor do crawler: fila, proxies, robots.txt, Lidl, PrestaShop, JSON-LD, HTML |
 | `js/items.js` | Cartões, filtros, ordenação, comparação entre lojas, cartão PNG |
 | `js/deals.js` | "É bom negócio?" |
+| `js/translate.js` | Tradução das palavras-chave (PT/FR/ES/DE) |
 | `js/watch.js` | Produtos seguidos e preço-alvo |
 | `js/monitor.js` | Alertas automáticos e notificações push |
 | `js/sites.js` | Diretório de lojas e verificador de compatibilidade |
