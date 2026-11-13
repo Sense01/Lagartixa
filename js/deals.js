@@ -25,6 +25,7 @@ const VERDICTS = {
 const verdictKey = (v) => String(v || 'incerto').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function dealHtml(d) {
+  d = { ...d };
   if (d.loading) return `<div class="deal-box loading">${d.cooldown ? '⏳ A IA está em cooldown — continua sozinha daqui a pouco' : '🔎 A pesquisar preços na web…'}</div>`;
   if (d.error) return `<div class="deal-box v-caro">⚠️ ${esc(d.error)}</div>`;
   const [label, cls] = VERDICTS[verdictKey(d.verdict)] || VERDICTS.incerto;
@@ -39,6 +40,9 @@ function dealHtml(d) {
     d.rrp != null && (okUrl(d.rrpUrl) ? `PVP ${link(d.rrpUrl, `<b>${fmtPrice(+d.rrp)}</b> ↗`)}` : !d.prices && `PVP <b>${fmtPrice(+d.rrp)}</b>`),
   ].filter(Boolean).join(' · ');
   const offers = (d.prices || []).filter((o) => okUrl(o.url));
+  // resposta de um Worker antigo: sem a lista de preços com link, o resumo pode citar preços sem prova
+  const legacy = !Array.isArray(d.prices);
+  if (legacy) d = { ...d, summary: 'Esta avaliação veio de uma versão antiga do Worker e pode citar preços sem link. Atualiza o Worker na Cloudflare e carrega em Reavaliar.' };
   const src = offers.length
     ? offers.slice(0, 5).map((o) => link(o.url, `${esc(o.store || hostOf(o.url))} <b>${fmtPrice(+o.price)}</b>`)).join(' ')
     : (d.sources || []).filter((x) => okUrl(x.url)).slice(0, 3).map((x) => link(x.url, esc(hostOf(x.url) || x.url))).join(' ');

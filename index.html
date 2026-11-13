@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=24">
+  <link rel="stylesheet" href="style.css?v=25">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -168,6 +168,7 @@
           <label><input type="checkbox" id="stripQuery"> Ignorar query strings (?a=b)</label>
           <label title="Para lojas cujas listas só mostram os primeiros produtos (ex.: Rádio Popular): lê o sitemap da loja e visita as páginas de produto com as palavras-chave"><input type="checkbox" id="useSitemap"> Procurar também no sitemap da loja (mais completo, mais lento)</label>
           <label><input type="checkbox" id="notify" checked> Notificar quando terminar</label>
+          <label title="Durante a pesquisa mostra só a barra de progresso; os produtos aparecem todos de uma vez no fim (podes carregar em Mostrar já)"><input type="checkbox" id="revealAtEnd" checked> Mostrar os produtos só no fim</label>
         </div>
 
         <div class="buttons full">
@@ -180,6 +181,11 @@
         </div>
       </form>
     </section>
+
+    <div id="loadBar" class="load-bar hidden" role="progressbar" aria-live="polite">
+      <div class="load-track"><div id="loadFill" class="load-fill"></div></div>
+      <div class="load-row"><span id="loadText"></span><button type="button" id="loadShow" class="small hidden">Mostrar já</button></div>
+    </div>
 
     <section class="stats">
       <div><span id="statCrawled">0</span><small>visitadas</small></div>
@@ -333,19 +339,19 @@
     </div>
   </div>
 
-  <script src="bg.js?v=24"></script>
-  <script src="js/util.js?v=24"></script>
-  <script src="js/store.js?v=24"></script>
-  <script src="js/extract-lite.js?v=24"></script>
-  <script src="js/translate.js?v=24"></script>
-  <script src="js/crawler.js?v=24"></script>
-  <script src="js/value.js?v=24"></script>
-  <script src="js/deals.js?v=24"></script>
-  <script src="js/resale.js?v=24"></script>
-  <script src="js/items.js?v=24"></script>
-  <script src="js/watch.js?v=24"></script>
-  <script src="js/monitor.js?v=24"></script>
-  <script src="js/sites.js?v=24"></script>
-  <script src="js/app.js?v=24"></script>
+  <script src="bg.js?v=25"></script>
+  <script src="js/util.js?v=25"></script>
+  <script src="js/store.js?v=25"></script>
+  <script src="js/extract-lite.js?v=25"></script>
+  <script src="js/translate.js?v=25"></script>
+  <script src="js/crawler.js?v=25"></script>
+  <script src="js/value.js?v=25"></script>
+  <script src="js/deals.js?v=25"></script>
+  <script src="js/resale.js?v=25"></script>
+  <script src="js/items.js?v=25"></script>
+  <script src="js/watch.js?v=25"></script>
+  <script src="js/monitor.js?v=25"></script>
+  <script src="js/sites.js?v=25"></script>
+  <script src="js/app.js?v=25"></script>
 </body>
 </html>

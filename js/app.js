@@ -7,7 +7,7 @@
 /* ---------- definições ---------- */
 const FIELDS = ['sites', 'keywords', 'maxPages', 'maxDepth', 'concurrency', 'delay', 'proxy', 'customProxy',
   'minPrice', 'maxPrice', 'minDiscount', 'shotService', 'dealMode', 'itemSort'];
-const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'useSitemap', 'wholeWord', 'caseSensitive', 'translate', 'notify',
+const CHECKS = ['sameDomain', 'sameSection', 'respectRobots', 'stripQuery', 'useSitemap', 'wholeWord', 'caseSensitive', 'translate', 'notify', 'revealAtEnd',
   'onlyGood', 'hideOut', 'onlyDrops'];
 
 function saveSettings() {
@@ -351,7 +351,8 @@ $('config').addEventListener('submit', async (e) => {
     appendItem(it, n);
   };
   crawler.onLog = log;
-  crawler.onProgress = (s) => updateStats(s, 'a correr');
+  crawler.onProgress = (s) => { updateStats(s, 'a correr'); Loading.progress(s, crawler.opts.maxPages); };
+  Loading.start();
 
   setRunning(true);
   updateStats(crawler.stats(), 'a correr');
@@ -370,6 +371,7 @@ $('config').addEventListener('submit', async (e) => {
   const s = crawler.stats();
   updateStats(s, state);
   setRunning(false);
+  Loading.finish(state);
   renderItems();
   Value._v++;
   renderCompare();

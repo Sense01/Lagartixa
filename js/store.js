@@ -239,7 +239,8 @@ const Store = (() => {
   const dealKey = (it) => `${P}deal:${itemKey(it)}|${it.price}`;
   function getDeal(it, maxAgeMs = 24 * 3600e3) {
     const d = read(dealKey(it), null);
-    return d && Date.now() - Date.parse(d.checkedAt) < maxAgeMs ? d : null;
+    // avaliações do Worker antigo (sem a lista de preços com link) não contam: são pedidas de novo
+    return d && Array.isArray(d.prices) && Date.now() - Date.parse(d.checkedAt) < maxAgeMs ? d : null;
   }
   const setDeal = (it, d) => { write(dealKey(it), d); emit('deal'); };
 

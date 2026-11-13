@@ -72,13 +72,13 @@ function itemCard(it, idx) {
   div.innerHTML = `
     <div class="media ${it.image ? '' : 'no-img'}">
       ${it.image
-        ? `<img class="prod-img" src="${esc(it.image)}" alt="${esc(it.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+        ? `<img class="prod-img" src="${esc(it.image)}" alt="${esc(it.name)}" decoding="async" referrerpolicy="no-referrer">`
         : ''}
       ${it.discount != null ? `<span class="badge">-${it.discount}%</span>` : ''}
       ${stock ? `<span class="stock-badge ${stock[1]}">${stock[0]}</span>` : ''}
       ${shot ? `
         <button type="button" class="shot-thumb loading" aria-label="Ver captura da página">
-          <img data-src="${esc(shot)}" src="${esc(shot)}" alt="" loading="lazy" decoding="async">
+          <img data-src="${esc(shot)}" src="${esc(shot)}" alt="" decoding="async">
           <span class="shot-label">página</span>
         </button>` : ''}
     </div>
@@ -102,14 +102,26 @@ function itemCard(it, idx) {
           ? `<button type="button" class="deal-btn">${it.deal && !it.deal.loading ? '🔄 Reavaliar' : '💡 Negócio?'}</button>` : ''}
       </div>
     </div>`;
-  div.querySelectorAll('.shot-thumb img').forEach(watchShot);
-  // se a foto do produto falhar, a captura da página passa a ocupar o espaço
-  div.querySelector('.prod-img')?.addEventListener('error', (e) => {
-    e.target.remove();
-    div.querySelector('.media').classList.add('no-img');
-  });
+  // anti-flicker: as imagens já carregadas do cartão anterior passam para o novo (não voltam a ser pedidas)
+  const old = cardOf.get(it);
+  const reuse = (sel) => {
+    const prev = old?.querySelector(sel), next = div.querySelector(sel);
+    if (prev && next && prev.dataset.src === next.dataset.src && prev.classList.contains('loaded')) { next.replaceWith(prev); return true; }
+    return false;
+  };
+  const prod = div.querySelector('.prod-img');
+  if (prod) prod.dataset.src = it.image;
+  if (!reuse('.prod-img') && prod) {
+    prod.addEventListener('load', () => prod.classList.add('loaded'), { once: true });
+    // se a foto do produto falhar, a captura da página passa a ocupar o espaço
+    prod.addEventListener('error', () => { prod.remove(); div.querySelector('.media').classList.add('no-img'); }, { once: true });
+  }
+  if (old?.querySelector('.shot-thumb.ready') && reuse('.shot-thumb img')) div.querySelector('.shot-thumb')?.classList.replace('loading', 'ready');
+  else div.querySelectorAll('.shot-thumb img').forEach(watchShot);
+  cardOf.set(it, div);
   return div;
 }
+const cardOf = new WeakMap();   // produto -> cartão desenhado (para reaproveitar as imagens)
 
 function refreshCard(it) {
   const idx = items.indexOf(it);
@@ -155,8 +167,44 @@ function renderItems() {
 }
 const renderItemsThrottled = debounce(renderItems, 350);
 
+/* ---------- carregamento: barra de progresso e produtos só no fim ---------- */
+const Loading = {
+  on: false,
+  start() {
+    this.on = $('revealAtEnd').checked;
+    $('loadBar').classList.remove('hidden', 'done');
+    $('loadFill').style.width = '0%';
+    $('loadText').textContent = 'A começar…';
+    $('loadShow').classList.add('hidden');
+    $('items').classList.toggle('waiting', this.on);
+  },
+  progress(s, maxPages) {
+    // a fila pode acabar antes do máximo de páginas: usa o que estiver mais adiantado
+    const pct = Math.min(99, Math.round(100 * Math.max(s.crawled / Math.max(1, maxPages), s.crawled / Math.max(1, s.crawled + s.queued))));
+    $('loadFill').style.width = pct + '%';
+    $('loadText').textContent = `${pct}% · ${s.crawled} página(s) · ${s.items} produto(s)` + (this.on && s.items ? ' prontos' : '');
+    $('loadShow').classList.toggle('hidden', !this.on || !s.items);
+  },
+  reveal() {
+    if (!this.on) return;
+    this.on = false;
+    $('loadShow').classList.add('hidden');
+    $('items').classList.remove('waiting');
+    renderItems();
+  },
+  finish(state) {
+    $('loadFill').style.width = '100%';
+    $('loadText').textContent = state === 'concluído' ? 'Concluído' : state === 'parado' ? 'Parado' : 'Terminado com erros';
+    $('loadBar').classList.add('done');
+    this.reveal();
+    setTimeout(() => $('loadBar').classList.add('hidden'), 1800);
+  },
+};
+$('loadShow').addEventListener('click', () => Loading.reveal());
+
 function appendItem(it, n) {
   $('itemsPanel').classList.remove('hidden');
+  if (Loading.on) { $('itemsCount').textContent = `${items.length}`; return; }   // aparecem todos no fim
   const filtersOn = $('itemSort').value !== 'found' || kwFilter || $('onlyGood').checked || $('hideOut').checked || $('onlyDrops').checked;
   if (filtersOn) return renderItemsThrottled();
   $('items').appendChild(itemCard(it, n - 1));

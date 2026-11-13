@@ -386,6 +386,16 @@
     ok(res.stopped && d.results.length < 20, 'Parar continua a parar a pesquisa', d.results.length);
   }
 
+  group('Avaliações antigas (sem preços com link)');
+  {
+    const it = { url: 'https://loja.pt/cabo-legacy', price: 5.9 };
+    Store.setDeal(it, { verdict: 'bom', score: 80, lowestPrice: 1.98, summary: 'mínimo 1,98 €', checkedAt: new Date().toISOString() });
+    ok(Store.getDeal(it) === null, 'avaliação do Worker antigo não é reutilizada (volta a ser pedida)');
+    Store.setDeal(it, { verdict: 'bom', score: 80, prices: [{ store: 'PTec', price: 7.49, url: 'https://ptec.pt/c' }], checkedAt: new Date().toISOString() });
+    ok(Store.getDeal(it)?.prices.length === 1, 'avaliação nova (com preços e links) fica guardada');
+    localStorage.removeItem(`test-deal:${Store.itemKey(it)}|5.9`);
+  }
+
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;
   sum.className = fail ? 'fail' : 'pass';
