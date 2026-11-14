@@ -357,27 +357,26 @@ const Barcode = (() => {
       try { localStorage.setItem(SETTINGS, JSON.stringify({ country })); } catch {}
       const localHtml = localHtmlOf(code);
       $('scanResult').scrollIntoView?.({ block: 'nearest' });
-      let d = null, name = null, err = null;
-      if (code) {
-        status(`${head({ code, price })}${localHtml}<div class="deal-box loading">🔎 A procurar este produto e os preços noutras lojas…</div>`);
-        try { d = await onlinePrices(code, price, country); name = d.productName; } catch (e) { err = e; }
-
-      }
-      // código interno da loja (a IA não o conhece) ou nenhum código na foto: ler a etiqueta
-      // à espera da IA (limite por minuto): não gastar outro pedido a ler a foto agora
-      if (photo && !err?.retryAfter && (!d || !d.productName || !d.prices.length) && !/antiga|Worker/.test(err?.message || '')) {
-        status(`${head({ code, price })}${localHtml}<div class="deal-box loading">🔎 ${code ? 'Este código não diz que produto é — ' : ''}a ler a etiqueta da foto…</div>`);
+      let d = null, name = null, err = null, fromPhoto = false;
+      // 1) com foto: a etiqueta manda. A IA lê o nome e o preço (foto inteira + zoom à etiqueta);
+      //    o código das etiquetas é muitas vezes interno da loja e a pesquisa por ele pode dar outro produto
+      if (photo) {
+        status(`${head({ code, price })}${localHtml}<div class="deal-box loading">🔎 A ler a etiqueta: nome e preço…</div>`);
         try {
           const id = await identify(photo);
-          if (id.name) {
-            name = id.name;
-            if (!price && id.price) { price = id.price; $('scanPrice').value = id.price; }
-            status(`${head({ name, code, price, note: '<br><small>lido na foto</small>' })}${localHtml}<div class="deal-box loading">🔎 A procurar os preços de ${esc(name)} noutras lojas…</div>`);
-            d = await onlinePrices(id.ean || (code && d?.productName ? code : ''), price, country, name);
-            err = null;
-          } else if (!d) err = new Error('Não consegui ler o produto na foto. Tira outra com o nome ou o código bem visíveis, ou escreve o número.');
-        } catch (e) { err = d ? null : e; }
+          if (id.name) { name = id.name; fromPhoto = true; }
+          if (!price && id.price) { price = id.price; $('scanPrice').value = id.price; }
+        } catch (e) { if (e.retryAfter) err = e; }
       }
+      // 2) preços online: pelo nome lido na etiqueta, senão pelo código
+      if (!err?.retryAfter && (name || code)) {
+        status(`${head({ name, code, price, note: fromPhoto ? '<br><small>lido na etiqueta</small>' : '' })}${localHtml}<div class="deal-box loading">🔎 A procurar ${name ? `os preços de ${esc(name)}` : 'este produto e os preços'} noutras lojas…</div>`);
+        try {
+          d = name ? await onlinePrices('', price, country, name) : await onlinePrices(code, price, country);
+          if (!name) name = d.productName;
+        } catch (e) { err = e; }
+      }
+      if (!d && !err && photo && !code) err = new Error('Não consegui ler o produto na foto. Tira outra com o nome ou o código bem visíveis, ou escreve o número.');
       if (!d && err?.retryAfter) {
         // limite por minuto da IA: barra até zero e volta a pesquisar sozinho
         const wait = Math.min(120, err.retryAfter + 2), until = Date.now() + wait * 1000;
@@ -388,7 +387,7 @@ const Barcode = (() => {
       }
       if (!d) { status(`${head({ code, price })}${localHtml}<div class="deal-box v-caro">⚠️ ${esc(err?.message || 'Sem resultado')}</div>`); return; }
       const cheaper = price && d.lowestPrice != null && d.lowestPrice < price ? ` · <b class="scan-save">${fmtPrice(price - d.lowestPrice)} mais barato online</b>` : '';
-      status(`${head({ name: name || d.productName, code, price, note: cheaper })}
+      status(`${head({ name: name || d.productName, code, price, note: cheaper + (fromPhoto ? '<br><small>nome e preço lidos na etiqueta — confirma o preço no campo acima</small>' : '') })}
         ${localHtml}
         ${d.prices.length ? '' : '<p class="empty">A IA não encontrou preços com link para este produto.</p>'}
         ${dealHtml(d)}`);
