@@ -1243,7 +1243,9 @@ async function handleDeal(request, env, ctx, cors) {
     '- "prices" lists each offer you actually saw: the shop, the price, and the URL of that exact ' +
     'product page (copied from your search results, never guessed or built by you).\n' +
     '- Only offers for exactly the same product: same brand, model, size/length/capacity/pack ' +
-    'quantity, new condition. Do not list other variants, used items or accessories.\n' +
+    'quantity, new condition. Do not list other variants, used items or accessories.\n' +    '- Only shops that sell in EUR to the buyer country (that country first, then other EU countries). ' +
+    'Leave out shops priced in other currencies (CHF, GBP, USD...), e.g. .ch, .co.uk or .com US sites.\n' +
+    (scan ? '- Search the EAN number and also the product name once you know it, so you find several shops (aim for 3 to 6).\n' : '') +
     '- If you cannot give the exact URL for a price, leave that price out. A price without its URL ' +
     'is discarded. Do not report a "lowest price" yourself: it is taken from "prices".\n' +
     '- "rrp" needs "rrpUrl" (the page that states it), otherwise use null.\n' +
