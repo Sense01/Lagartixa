@@ -1199,13 +1199,15 @@ async function handleDeal(request, env, ctx, cors) {
   const item = await request.json().catch(() => null);
   if (!item) throw new HttpError('JSON invalido');
   const name = String(item.name || '').slice(0, 200).trim();
-  const price = Number(item.price);
-  if (!name || !isFinite(price)) throw new HttpError('Faltam name/price');
+  const ean = String(item.ean || '').replace(/\D/g, '');
+  const scan = !name && validGtin(ean);                 // leitor de codigos de barras: so o EAN (e talvez o preco da prateleira)
+  const price = item.price == null || item.price === '' ? (scan ? null : NaN) : Number(item.price);
+  if ((!name && !scan) || (price !== null && !(price > 0 && isFinite(price)))) throw new HttpError(scan || ean ? 'EAN invalido ou preco invalido' : 'Faltam name/price');
   const currency = String(item.currency || 'EUR').slice(0, 5);
   const store = String(item.store || '').slice(0, 80);
   const country = /^[A-Z]{2}$/.test(item.country || '') ? item.country : 'PT';
 
-  const cacheKey = new Request('https://deal-cache.local/v2/' + encodeURIComponent(`${name}|${price}|${country}`.toLowerCase()));
+  const cacheKey = new Request('https://deal-cache.local/v2/' + encodeURIComponent(`${name || 'ean:' + ean}|${price}|${country}`.toLowerCase()));
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return json({ ...(await hit.json()), cached: true }, 200, cors);
@@ -1223,10 +1225,13 @@ async function handleDeal(request, env, ctx, cors) {
   const h = item.history && typeof item.history === 'object' ? item.history : null;
   const others = Array.isArray(item.otherStores) ? item.otherStores.slice(0, 3) : [];
   const prompt =
-    `Product: "${name}"\n` +
-    `Price found: ${price} ${currency}` + (item.oldPrice ? ` (store says previous price ${item.oldPrice} ${currency})` : '') +
+    (scan
+      ? `Product: identify it from its barcode, EAN/GTIN ${ean} (search the number itself first). ` +
+        'The buyer scanned it in a physical shop and wants the prices online.\n' +
+        (price ? `Price on the shelf: ${price} ${currency}` : 'Price on the shelf: not given (then use "incerto" as verdict)')
+      : `Product: "${name}"\nPrice found: ${price} ${currency}` + (item.oldPrice ? ` (store says previous price ${item.oldPrice} ${currency})` : '')) +
     (store ? `\nStore: ${store}` : '') +
-    (item.ean ? `\nEAN: ${String(item.ean).replace(/\D/g, '')}` : '') +
+    (ean && !scan ? `\nEAN: ${ean}` : '') +
     (h && h.points > 1 ? `\nOur own price tracking at this store since ${h.since}: min ${h.min}, max ${h.max} (${h.points} observations).` : '') +
     (others.length ? `\nWe also saw it at: ${others.map((o) => `${o.store} ${o.price} (${o.date})`).join('; ')}.` : '') +
     `\nBuyer country: ${country}\n\n` +
@@ -1245,7 +1250,8 @@ async function handleDeal(request, env, ctx, cors) {
     '- The summary may only mention prices that are in "prices", "rrp" or given above.\n' +
     'When done searching, write your final answer as plain text (do NOT call any ' +
     'tool named json or any other tool for the answer) containing ONLY one JSON object:\n' +
-    '{"verdict":"bom"|"razoavel"|"caro"|"incerto","score":0-100,' +
+    '{' + (scan ? '"productName":"brand and model of the product with this EAN, or null if you could not identify it",' : '') +
+    '"verdict":"bom"|"razoavel"|"caro"|"incerto","score":0-100,' +
     '"prices":[{"store":"shop name","price":number,"url":"https://exact-page-with-this-price"}],' +
     '"typicalPrice":number|null,"rrp":number|null,"rrpUrl":string|null,"currency":"EUR",' +
     '"summary":"1-2 short sentences in European Portuguese explaining the verdict with the numbers"}\n' +
@@ -1265,6 +1271,11 @@ async function handleDeal(request, env, ctx, cors) {
   let result = extractVerdict(text) || { verdict: 'incerto', score: null, summary: cleanText(text).slice(-400) };
   if (result.summary) result.summary = cleanText(String(result.summary));
   result = await pairPrices(result, { trace: out.trace, store, price, oldPrice: Number(item.oldPrice) || null, extraSources: out.sources });
+  if (scan) {
+    result.ean = ean;
+    result.productName = typeof result.productName === 'string' ? cleanText(result.productName).slice(0, 160) || null : null;
+    if (!price) { result.verdict = 'incerto'; result.score = null; }
+  }
   result.checkedAt = new Date().toISOString();
   result.searches = out.searches ?? null;
   result.provider = provider.name + (out.model ? ` (${out.model})` : '');
@@ -1274,6 +1285,15 @@ async function handleDeal(request, env, ctx, cors) {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': `max-age=${DEAL_CACHE_SECONDS}` },
   })));
   return json(result, 200, cors);
+}
+
+/** EAN-8, UPC-A (12), EAN-13 ou GTIN-14 com o digito de controlo certo */
+function validGtin(code) {
+  if (![8, 12, 13, 14].includes(code.length)) return false;
+  const d = [...code].map(Number);
+  const check = d.pop();
+  const sum = d.reverse().reduce((s, x, i) => s + x * (i % 2 ? 1 : 3), 0);
+  return (10 - (sum % 10)) % 10 === check;
 }
 
 /* ---------- regra: cada preco citado tem o link da pagina onde foi visto ---------- */

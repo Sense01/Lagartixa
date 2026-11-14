@@ -922,7 +922,7 @@ button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: 
   z-index: 16;
   display: flex;
   gap: 0.25rem;
-  width: min(calc(100% - 1.2rem), 460px);
+  width: min(calc(100% - 1.2rem), 560px);
   height: var(--nav-h);
   padding: 0.35rem;
   border-radius: 999px;
@@ -1022,3 +1022,22 @@ body.sheet-open { overflow: hidden; }
 .load-bar.done .load-fill { background-color: var(--ok); animation: none; }
 .load-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.55rem; min-height: 2rem; font-size: 0.82rem; color: var(--muted); }
 .items.waiting { display: none; }
+
+/* leitor de códigos de barras */
+.scan-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.scan-actions button { flex: 1 1 10rem; }
+.scan-video { position: relative; margin-bottom: 0.9rem; border-radius: 18px; overflow: hidden; background: #000; }
+.scan-video video { display: block; width: 100%; max-height: 52vh; object-fit: cover; }
+.scan-aim { position: absolute; left: 12%; right: 12%; top: 50%; height: 30%; transform: translateY(-50%); border: 2px solid rgba(255,255,255,0.85); border-radius: 14px; box-shadow: 0 0 0 999px rgba(0,0,0,0.25); pointer-events: none; }
+.scan-aim::after { content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: #ff4d5e; box-shadow: 0 0 10px #ff4d5e; animation: aim 1.6s ease-in-out infinite; }
+@keyframes aim { 50% { transform: translateY(-1.2rem); } }
+.scan-video #scanStop { position: absolute; right: 0.6rem; bottom: 0.6rem; }
+.scan-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 0.6rem; align-items: end; margin-bottom: 0.9rem; }
+.scan-form label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; }
+.scan-form input, .scan-form select { margin: 0; }
+.scan-status { display: grid; gap: 0.6rem; color: var(--muted); font-size: 0.86rem; }
+.scan-status h3 { margin: 0.3rem 0 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.scan-code { color: var(--text); font-size: 0.95rem; line-height: 1.45; }
+.scan-status .cmp-row span { display: flex; flex-direction: column; }
+@media (max-width: 640px) { .scan-form { grid-template-columns: 1fr 1fr; } .scan-form label:first-child, .scan-form button { grid-column: 1 / -1; } }
+.scan-save { color: var(--ok); }

@@ -396,6 +396,61 @@
     localStorage.removeItem(`test-deal:${Store.itemKey(it)}|5.9`);
   }
 
+  group('Leitor de códigos de barras');
+  {
+    ok(Barcode.validGtin('5702017151861') && !Barcode.validGtin('5702017151862') && Barcode.validGtin('96385074') && Barcode.validGtin('036000291452'), 'dígito de controlo (EAN-13, EAN-8, UPC-A)');
+    // desenha um código EAN num canvas (como uma foto: escala, inclinação, desfoque, ruído, contraste fraco)
+    const L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+    const G = L.map((p) => [...p].map((b) => (b === '1' ? '0' : '1')).reverse().join(''));
+    const R = L.map((p) => [...p].map((b) => (b === '1' ? '0' : '1')).join(''));
+    const PAR = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+    const bits = (code) => {
+      if (code.length === 8) return '101' + [...code.slice(0, 4)].map((d) => L[d]).join('') + '01010' + [...code.slice(4)].map((d) => R[d]).join('') + '101';
+      const par = PAR[code[0]];
+      return '101' + [...code.slice(1, 7)].map((d, i) => (par[i] === 'L' ? L : G)[d]).join('') + '01010' + [...code.slice(7)].map((d) => R[d]).join('') + '101';
+    };
+    const draw = (code, { mod = 3, angle = 0, blur = 0, noise = 0, contrast = 1, flip = false, vertical = false } = {}) => {
+      const b = bits(code), w = (b.length + 24) * mod, h = Math.round(w * 0.45);
+      const c = document.createElement('canvas');
+      c.width = vertical ? h + 80 : w + 80; c.height = vertical ? w + 80 : h + 80;
+      const x = c.getContext('2d');
+      const lo = Math.round(255 * (1 - contrast) / 2), hi = 255 - lo;
+      x.fillStyle = `rgb(${hi},${hi},${hi})`; x.fillRect(0, 0, c.width, c.height);
+      x.translate(c.width / 2, c.height / 2); x.rotate((angle + (flip ? 180 : 0) + (vertical ? 90 : 0)) * Math.PI / 180);
+      if (blur) x.filter = `blur(${blur}px)`;
+      x.fillStyle = `rgb(${lo},${lo},${lo})`;
+      [...b].forEach((bit, i) => { if (bit === '1') x.fillRect(-w / 2 + (12 + i) * mod, -h / 2, mod, h); });
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      const img = x.getImageData(0, 0, c.width, c.height);
+      if (noise) for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * noise; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
+      return img;
+    };
+    const cases = [
+      ['5702017151861', {}, 'nítido'],
+      ['5601234567892', { mod: 2.3, angle: 4, blur: 0.8, noise: 50 }, 'pequeno, inclinado 4°, desfocado e com ruído'],
+      ['8410076472717', { mod: 4, contrast: 0.45, noise: 30 }, 'contraste fraco'],
+      ['4006381333931', { flip: true }, 'de pernas para o ar'],
+      ['3045140105502', { vertical: true }, 'na vertical'],
+      ['036000291452', {}, 'UPC-A'],
+      ['96385074', { mod: 3, blur: 0.6 }, 'EAN-8'],
+    ];
+    for (const [code, opt, label] of cases) {
+      const ean13 = code.length === 12 ? '0' + code : code;
+      const got = Barcode.decodeImageData(draw(ean13, opt));
+      ok(got === ean13, `lê o código: ${label}`, got);
+    }
+    const blank = document.createElement('canvas'); blank.width = 400; blank.height = 200;
+    const bx = blank.getContext('2d'); bx.fillStyle = '#fff'; bx.fillRect(0, 0, 400, 200); bx.fillStyle = '#000'; bx.font = '40px sans-serif'; bx.fillText('Sem código 123', 20, 110);
+    ok(Barcode.decodeImageData(bx.getImageData(0, 0, 400, 200)) === null, 'imagem sem código: nada (não inventa números)');
+    // o mesmo EAN no histórico
+    localStorage.removeItem('test-crawler-history'); Store._reset();
+    Store.recordPrice({ url: 'https://www.worten.pt/p/rosas', name: 'LEGO Rosas', price: 11.99, ean: '5702017151861' });
+    Store.recordPrice({ url: 'https://www.fnac.pt/rosas', name: 'LEGO Rosas 40460', price: 12.49, ean: '5702017151861' });
+    const lp = Barcode.localPrices('5702017151861');
+    ok(lp.length === 2 && lp[0].price === 11.99 && lp[0].store === 'worten.pt', 'preços do mesmo EAN no teu histórico, do mais barato para o mais caro', lp);
+    localStorage.removeItem('test-crawler-history'); Store._reset();
+  }
+
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;
   sum.className = fail ? 'fail' : 'pass';

@@ -206,6 +206,29 @@ console.log('\nTraducao das palavras-chave');
 }
 
 /* ======================================================================== */
+console.log('\nLeitor de codigos de barras (so o EAN)');
+{
+  routes.length = 0;
+  let prompt = '';
+  routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
+    prompt = JSON.parse(o.body).messages[0].content;
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"productName":"LEGO Botanicals Rosas 40460","verdict":"bom","score":75,"prices":[{"store":"Fnac","price":12.99,"url":"https://www.fnac.pt/rosas"}],"typicalPrice":12.99,"summary":"Mais barato que 12,99 € na Fnac."}' } }] }));
+  } });
+  routes.push({ match: (u) => u.includes('fnac.pt'), reply: (u) => new Response(u.endsWith('robots.txt') ? '' : '12,99 €') });
+  const env = { CRAWLER_KV: makeKV(), AI_API_KEY: 'gsk_x' };
+  const r = await W.fetch(req('/deal', { method: 'POST', body: { ean: '5702017151861', price: 9.99, country: 'PT' } }), env, waitCtx);
+  const j = await r.json();
+  ok(r.status === 200 && j.productName === 'LEGO Botanicals Rosas 40460' && j.ean === '5702017151861', 'so com o EAN: a IA identifica o produto', JSON.stringify(j));
+  ok(j.lowestPriceUrl === 'https://www.fnac.pt/rosas' && j.lowestVerified === true, 'precos noutras lojas com link (a mesma regra estrita)');
+  ok(/EAN\/GTIN 5702017151861/.test(prompt) && /physical shop/.test(prompt) && /9\.99/.test(prompt), 'o pedido usa o EAN e o preco da prateleira');
+  const r2 = await W.fetch(req('/deal', { method: 'POST', body: { ean: '5702017151861' } }), env, waitCtx);
+  const j2 = await r2.json();
+  ok(r2.status === 200 && j2.verdict === 'incerto' && j2.prices.length === 1, 'sem preco da prateleira: mostra os precos, sem veredicto');
+  const bad = await W.fetch(req('/deal', { method: 'POST', body: { ean: '5702017151862' } }), env, waitCtx);
+  ok(bad.status === 400, 'EAN com digito de controlo errado e recusado');
+}
+
+/* ======================================================================== */
 console.log('\nVerificacao automatica (Cron)');
 {
   const dev = await makeDevice();

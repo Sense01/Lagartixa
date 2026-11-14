@@ -41,6 +41,10 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
 - **Preço citado = link de origem**: a IA tem de dar, para cada preço, o endereço da página onde o viu. O Worker descarta preços
   sem link, links de domínios que não apareceram na pesquisa e páginas que já não existem; o "mais baixo" é calculado a partir
   desses pares e o Worker abre a página para confirmar o preço (✓ confirmado / por confirmar).
+- **📷 Leitor de códigos de barras** (barra inferior → Ler código): câmara ao vivo, foto ou número escrito. Lê EAN-13, EAN-8
+  e UPC-A (BarcodeDetector do browser quando existe; senão um descodificador próprio em `js/barcode.js`, que funciona no
+  iPhone). Mostra o mesmo EAN no teu histórico e pede ao Worker os preços online só com o código (`/deal` com `ean`),
+  com o nome do produto e cada preço com o seu link. Escreve o preço da prateleira para saber quanto poupas.
 - **Barra inferior fixa**: Simular revenda, Histórico de achados e Registo abrem por cima da página, sempre à mão.
 - **💡 É bom negócio?** — IA com pesquisa web (Groq/xAI/Anthropic) dá veredicto, preço típico, mais baixo e PVP; por omissão
   só ao tocar no botão (há um modo automático). Uma avaliação por modelo: as variantes de cor herdam o resultado. Quando a
