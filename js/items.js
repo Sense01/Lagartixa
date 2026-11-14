@@ -283,7 +283,7 @@ $('items').addEventListener('click', (e) => {
     return refreshCard(it);
   }
   if (e.target.closest('.deal-btn')) {
-    if (it.deal?.loading) return;
+    if (it.deal?.loading || it.deal?.until > Date.now()) return;   // à espera da IA: a nova tentativa já está marcada
     return evaluateDeal(it, { force: !!it.deal });
   }
   const btn = e.target.closest('.save-card');

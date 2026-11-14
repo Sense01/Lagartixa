@@ -25,7 +25,6 @@ const VERDICTS = {
 const verdictKey = (v) => String(v || 'incerto').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function dealHtml(d) {
-  d = { ...d };
   if (d.loading && d.until) return cooldownHtml(d.until);
   if (d.loading) return `<div class="deal-box loading">🔎 A pesquisar preços na web…</div>`;
   if (d.error && d.until && d.until > Date.now()) return cooldownHtml(d.until);
@@ -42,9 +41,6 @@ function dealHtml(d) {
     d.rrp != null && (okUrl(d.rrpUrl) ? `PVP ${link(d.rrpUrl, `<b>${fmtPrice(+d.rrp)}</b> ↗`)}` : !d.prices && `PVP <b>${fmtPrice(+d.rrp)}</b>`),
   ].filter(Boolean).join(' · ');
   const offers = (d.prices || []).filter((o) => okUrl(o.url));
-  // resposta de um Worker antigo: sem a lista de preços com link, o resumo pode citar preços sem prova
-  const legacy = !Array.isArray(d.prices);
-  if (legacy) d = { ...d, summary: 'Esta avaliação veio de uma versão antiga do Worker e pode citar preços sem link. Atualiza o Worker na Cloudflare e carrega em Reavaliar.' };
   const src = offers.length
     ? offers.slice(0, 5).map((o) => link(o.url, `${esc(o.store || hostOf(o.url))} <b>${fmtPrice(+o.price)}</b>`)).join(' ')
     : (d.sources || []).filter((x) => okUrl(x.url)).slice(0, 3).map((x) => link(x.url, esc(hostOf(x.url) || x.url))).join(' ');
@@ -105,7 +101,8 @@ async function evaluateDeal(it, { force = false, retry = true } = {}) {
     if (e.retryAfter) {
       const wait = Math.min(120, e.retryAfter + 2);
       it.deal.until = Date.now() + wait * 1000;
-      if (retry) setTimeout(() => { if (it.deal?.until) evaluateDeal(it, { force: true }); }, wait * 1000);
+      clearTimeout(it._retry);                         // uma só nova tentativa por produto, por mais toques que haja
+      if (retry) it._retry = setTimeout(() => { if (it.deal?.until) evaluateDeal(it, { force: true }); }, wait * 1000);
     }
   }
   refreshCard(it);

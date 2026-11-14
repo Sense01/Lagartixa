@@ -461,6 +461,71 @@
     localStorage.removeItem('test-crawler-history'); Store._reset();
   }
 
+  group('Leitor: sem códigos falsos');
+  {
+    // riscas verticais ao calhas (como texto, tecidos ou capturas de ecrã): não pode sair um código
+    const c = document.createElement('canvas'); c.width = 900; c.height = 500;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 500);
+    let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 1400; i++) { x.fillStyle = rnd() < 0.5 ? '#000' : '#777'; x.fillRect(rnd() * 900, rnd() * 500, 1 + rnd() * 6, 10 + rnd() * 120); }
+    const t = performance.now();
+    const got = Barcode.exhaustiveScan(x.getImageData(0, 0, 900, 500));
+    ok(got === null, `riscas ao calhas: nenhum código inventado (${Math.round(performance.now() - t)} ms)`, got);
+    ok(performance.now() - t < 4000, 'procura exaustiva com limite de tempo');
+  }
+
+  group('App: leitor de códigos e espera da IA (página real num iframe)');
+  await new Promise((resolve) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'position:absolute;left:-9999px;width:390px;height:800px';
+    f.src = '../index.html';
+    f.onload = async () => {
+      const w = f.contentWindow, $f = (id) => w.document.getElementById(id);
+      try {
+        await new Promise((r) => setTimeout(r, 300));
+        const Sh = w.eval('Sheets'), Bc = w.eval('Barcode');   // const globais não ficam em window
+        $f('customProxy').value = 'https://w.test/?url={url}';
+        const calls = [];
+        let mode = 'limit';
+        w.fetch = async (url, o = {}) => {
+          const path = String(url).replace('https://w.test', ''), body = o.body ? JSON.parse(o.body) : {};
+          calls.push({ path, body });
+          const json = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
+          if (mode === 'limit') return json({ error: 'Limite de pedidos da Groq por minuto', retryAfter: 1 }, 429);
+          if (path === '/identify') return json({ name: body.image.length > 50 ? 'Produto ' + calls.length : null, price: calls.length < 3 ? 89 : 12.5, ean: null });
+          return json({ productName: null, verdict: 'incerto', prices: [{ store: 'Loja', price: 10, url: 'https://loja.pt/x' }], lowestPrice: 10, lowestPriceUrl: 'https://loja.pt/x', summary: 'ok', checkedAt: new Date().toISOString() });
+        };
+        // 1) espera da IA: barra; uma nova pesquisa cancela a tentativa antiga
+        Sh.open('scan');
+        $f('scanEan').value = '5702017151861'; $f('scanForm').requestSubmit();
+        await new Promise((r) => setTimeout(r, 300));
+        ok(!!w.document.querySelector('#scanStatus .cooldown'), 'limite por minuto: aparece a barra "Pesquisa indisponível"');
+        mode = 'ok';
+        $f('scanEan').value = '4006381333931'; $f('scanForm').requestSubmit();
+        await new Promise((r) => setTimeout(r, 3500));          // a tentativa antiga dispararia aqui (1 s + 2 s)
+        const deals = calls.filter((c) => c.path === '/deal').map((c) => c.body.ean);
+        ok(deals.filter((e) => e === '5702017151861').length === 1 && $f('scanEan').value === '4006381333931', 'a tentativa antiga não volta a pesquisar o código anterior', deals);
+        // 2) preço lido na etiqueta não passa para o produto seguinte
+        calls.length = 0;
+        const photo = { image: 'data:image/jpeg;base64,' + 'A'.repeat(80), zoom: null };
+        $f('scanPrice').value = '';
+        // a mesma função que a câmara/galeria usam
+        const run = async () => { $f('scanEan').value = ''; await Bc._lookup(null, { photo }); };
+        if (!Bc._lookup) throw new Error('Barcode._lookup em falta');
+        await run();
+        const p1 = $f('scanPrice').value;
+        await run();
+        const second = calls.filter((c) => c.path === '/deal').pop();
+        ok(p1 === '89' && second.body.price === 12.5, 'o preço lido na etiqueta do produto anterior não é reutilizado', { p1, second: second.body });
+        $f('scanPrice').value = '20'; $f('scanPrice').dispatchEvent(new w.Event('input'));
+        await run();
+        ok(calls.filter((c) => c.path === '/deal').pop().body.price === 20, 'o preço escrito à mão é respeitado');
+      } catch (e) { ok(false, 'testes da app no iframe', e.message); }
+      f.remove(); resolve();
+    };
+    document.body.appendChild(f);
+  });
+
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;
   sum.className = fail ? 'fail' : 'pass';

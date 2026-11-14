@@ -791,7 +791,7 @@ async function pairPrices(result, { trace, store, price, oldPrice, extraSources 
     prices: offers,
     lowestPrice: low ? low.price : null, lowestPriceUrl: low ? low.url : null, lowestPriceStore: low ? low.store : null,
     lowestVerified: low ? low.verified === true : null,
-    typicalPrice: offers.length ? (num(result.typicalPrice) || mid) : null,
+    typicalPrice: mid,                                    // mediana das ofertas com link (nunca um numero sem prova)
     rrp, rrpUrl: rrp ? rrpUrl.slice(0, 600) : null,
   };
   if (!offers.length && !rrp) {

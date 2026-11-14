@@ -121,7 +121,7 @@ const Barcode = (() => {
   function exhaustiveScan(img) {
     const angles = [];
     for (let a = -85; a <= 90; a += 5) angles.push(a);
-    return deepScan(img, { angles, spacing: 5, step: 0.5 });
+    return deepScan(img, { angles, spacing: 5, step: 0.5, deadline: 2000 });   // no máximo ~2 s por passagem
   }
 
   let lastHit = null;
@@ -167,7 +167,10 @@ const Barcode = (() => {
       }
     }
     // só uma linha leu: aceita (o dígito de controlo já confirmou)
-    return votes.size ? [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0] : null;
+    // uma só linha leu: aceita um EAN-13 (o dígito de controlo e o padrão longo bastam), mas não um EAN-8:
+    // é curto e, entre milhares de linhas de uma foto, aparece por acaso
+    const [best, n] = [...votes.entries()].sort((a, b) => b[1] - a[1])[0] || [];
+    return best && (n >= 2 || best.length === 13) ? best : null;
   }
 
   /* ---------- fontes de imagem ---------- */
@@ -296,10 +299,6 @@ const Barcode = (() => {
       ? { name, ean: ean || undefined, lookup: true, price: price || undefined, country, currency: 'EUR' }
       : { ean, price: price || undefined, country, currency: 'EUR' });
     const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    // "Faltam name/price" = o Worker antigo, que ainda não conhece a pesquisa só com o código
-    if (/Faltam name\/price/.test(data.error || '') || (res.ok && !Array.isArray(data.prices))) {
-      throw new Error('O teu Worker ainda é a versão antiga: cola o worker/cloudflare-worker.js novo na Cloudflare (Edit code → colar → Deploy) e tenta de novo.');
-    }
     if (!res.ok || data.error) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { retryAfter: +data.retryAfter || 0 });
     if (!Array.isArray(data.prices)) throw new Error('O Worker é de uma versão antiga: cola o worker/cloudflare-worker.js novo na Cloudflare e faz Deploy');
     return data;
@@ -348,10 +347,13 @@ const Barcode = (() => {
 
     /** preços do produto: pelo código; se a IA não o reconhecer e houver foto, lê a etiqueta e procura pelo nome */
     async function lookup(code, { photo = null } = {}) {
+      clearTimeout(lookup.retry);                       // uma nova tentativa antiga não pode substituir esta pesquisa
       code = code ? String(code).replace(/\D/g, '') : '';
       if (code && !validGtin(code)) { status('⚠️ Este número não é um EAN válido (8, 12 ou 13 dígitos, com o último a confirmar).'); return; }
       if (!code && !photo) return;
       if (code) { $('scanEan').value = code; navigator.vibrate?.(60); }
+      // preço lido na etiqueta do produto anterior: não serve para este
+      if (photo && $('scanPrice').dataset.auto === '1') { $('scanPrice').value = ''; delete $('scanPrice').dataset.auto; }
       let price = numOrNull($('scanPrice').value);
       const country = $('scanCountry').value;
       try { localStorage.setItem(SETTINGS, JSON.stringify({ country })); } catch {}
@@ -365,7 +367,7 @@ const Barcode = (() => {
         try {
           const id = await identify(photo);
           if (id.name) { name = id.name; fromPhoto = true; }
-          if (!price && id.price) { price = id.price; $('scanPrice').value = id.price; }
+          if (!price && id.price) { price = id.price; $('scanPrice').value = id.price; $('scanPrice').dataset.auto = '1'; }
         } catch (e) { if (e.retryAfter) err = e; }
       }
       // 2) preços online: pelo nome lido na etiqueta, senão pelo código
@@ -419,6 +421,8 @@ const Barcode = (() => {
     };
     $('scanFile').addEventListener('change', onFile);
     $('scanGallery').addEventListener('change', onFile);
+    $('scanPrice').addEventListener('input', () => delete $('scanPrice').dataset.auto);   // escrito à mão: é teu
+    api._lookup = lookup;                              // para os testes
     $('scanForm').addEventListener('submit', (e) => { e.preventDefault(); lookup($('scanEan').value); });
     // a câmara desliga-se quando a folha fecha
     document.addEventListener('sheet', (e) => { if (e.detail !== 'scan') { stopCamera(); $('scanVideoWrap').classList.add('hidden'); } });
@@ -426,5 +430,6 @@ const Barcode = (() => {
       .observe($('scanPanel'), { attributes: true, attributeFilter: ['class'] });
   }
 
-  return { validGtin, decodeImageData, exhaustiveScan, scanLine, decodeFile, localPrices, initUi, hasNative: !!native };
+  const api = { validGtin, decodeImageData, exhaustiveScan, scanLine, decodeFile, localPrices, initUi, hasNative: !!native };
+  return api;
 })();
