@@ -1,0 +1,14 @@
+# Configuração para a Cloudflare publicar o Worker sozinha a partir do GitHub
+# (Workers Builds: Settings -> Builds -> Connect -> repositório Sense01/Lagartixa, Root directory: worker).
+# Os segredos (chave da IA, APP_TOKEN) ficam na Cloudflare e não vêm para aqui.
+name = "crawler-proxy"
+main = "cloudflare-worker.js"
+compatibility_date = "2026-11-01"
+keep_vars = true
+
+[[kv_namespaces]]
+binding = "CRAWLER_KV"
+id = "6269f0f6f56d4ac5935a97f9de3c3fae"
+
+[triggers]
+crons = ["0 * * * *"]
