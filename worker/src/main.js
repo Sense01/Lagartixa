@@ -634,7 +634,7 @@ async function handleDeal(request, env, ctx, cors) {
   const store = String(item.store || '').slice(0, 80);
   const country = /^[A-Z]{2}$/.test(item.country || '') ? item.country : 'PT';
 
-  const cacheKey = new Request('https://deal-cache.local/v2/' + encodeURIComponent(`${name || 'ean:' + ean}|${price}|${country}`.toLowerCase()));
+  const cacheKey = new Request('https://deal-cache.local/v3/' + encodeURIComponent(`${name || 'ean:' + ean}|${price}|${country}`.toLowerCase()));
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
   if (hit) return json({ ...(await hit.json()), cached: true }, 200, cors);
@@ -777,6 +777,8 @@ async function pairPrices(result, { trace, store, price, oldPrice, extraSources 
     const v = await checkPriceLink(offers[0]);
     if (v === null) { offers.shift(); continue; }
     offers[0].verified = v;
+    // muito mais barato que os outros e sem confirmacao na pagina: provavelmente outro produto, usado ou um erro
+    if (!v && offers.length >= 2 && offers[0].price < offers[1].price * 0.6) { offers.shift(); continue; }
     break;
   }
   const num = (v) => (Number(v) > 0 && isFinite(Number(v)) ? Number(v) : null);

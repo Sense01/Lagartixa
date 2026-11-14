@@ -386,7 +386,8 @@ const Barcode = (() => {
         return;
       }
       if (!d) { status(`${head({ code, price })}${localHtml}<div class="deal-box v-caro">⚠️ ${esc(err?.message || 'Sem resultado')}</div>`); return; }
-      const cheaper = price && d.lowestPrice != null && d.lowestPrice < price ? ` · <b class="scan-save">${fmtPrice(price - d.lowestPrice)} mais barato online</b>` : '';
+      const cheaper = price && d.lowestPrice != null && d.lowestPrice < price
+        ? ` · <b class="scan-save">${fmtPrice(price - d.lowestPrice)} mais barato online</b>${d.lowestVerified ? '' : ' <small>(por confirmar: abre o link)</small>'}` : '';
       status(`${head({ name: name || d.productName, code, price, note: cheaper + (fromPhoto ? '<br><small>nome e preço lidos na etiqueta — confirma o preço no campo acima</small>' : '') })}
         ${localHtml}
         ${d.prices.length ? '' : '<p class="empty">A IA não encontrou preços com link para este produto.</p>'}

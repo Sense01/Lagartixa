@@ -426,6 +426,13 @@ console.log('\nAuditoria: corrida com a sincronizacao, robots, token, fontes');
   const c5 = await deal('Coluna Bose');
   ok(c5.prices.length === 1 && c5.lowestPriceStore === 'Worten', 'lojas noutra moeda (.pl, .ch, .co.uk) sao descartadas', JSON.stringify(c5.prices));
 
+  // preco muito abaixo dos outros e por confirmar: sai (era o caso da Worten a 37,87 EUR vs 89,98)
+  routes.length = 0;
+  routes.push(groq('{"verdict":"razoavel","score":60,"prices":[{"store":"Worten","price":37.87,"url":"https://www.worten.pt/jbl"},{"store":"Darty","price":89.98,"url":"https://darty.pt/jbl"},{"store":"FT","price":137,"url":"https://www.ftshopping.pt/jbl"}],"summary":"Ok."}'));
+  routes.push({ match: (u) => /worten|darty|ftshopping/.test(u), reply: (u) => new Response(u.includes('darty') ? '89,98 €' : 'pagina') });
+  const c6 = await deal('JBL Charge Essential');
+  ok(c6.lowestPrice === 89.98 && c6.lowestVerified === true && c6.prices.length === 2, 'preco suspeito (40% abaixo dos outros e por confirmar) e descartado', JSON.stringify(c6.prices));
+
   // link morto (404) sai; sem nenhum preco com link -> "incerto"
   routes.length = 0;
   routes.push(groq('{"verdict":"bom","score":90,"prices":[{"store":"Morta","price":2,"url":"https://morta.pt/x"},{"store":"Viva","price":6,"url":"https://viva.pt/x"}],"summary":"Bom."}'));
