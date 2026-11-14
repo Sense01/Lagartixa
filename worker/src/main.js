@@ -724,6 +724,9 @@ function validGtin(code) {
 
 const baseHost = (h) => h.split('.').slice(-2).join('.');
 
+// dominios de paises que nao vendem em euros
+const NON_EUR_TLD = /\.(pl|ch|uk|us|se|dk|no|cz|hu|ro|bg|ca|au|nz|jp|cn|in|br|mx|tr|ru|ua|za|sg|hk|ae|is)$/i;
+
 /** ofertas validas da resposta da IA: preco > 0, link http(s), loja diferente da nossa, dominio que apareceu na pesquisa */
 function validOffers(list, trace, ownStore) {
   const seen = String(trace || '').toLowerCase();
@@ -734,6 +737,7 @@ function validOffers(list, trace, ownStore) {
     const host = /^https?:\/\/[^\s/]+\.[^\s/]+/i.test(url) ? hostOf(url) : '';
     if (!(price > 0) || !isFinite(price) || !host) continue;
     if (ownStore && baseHost(host) === baseHost(ownStore)) continue;
+    if (NON_EUR_TLD.test(host)) continue;                // lojas noutra moeda (zl, CHF, libras...): o preco nao e comparavel
     // com o registo da pesquisa: um dominio que nao aparece la foi inventado pelo modelo
     if (seen.length > 40 && !seen.includes(baseHost(host))) continue;
     if (out.some((o) => o.url === url)) continue;

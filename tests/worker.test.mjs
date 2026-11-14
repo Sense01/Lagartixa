@@ -397,6 +397,13 @@ console.log('\nAuditoria: corrida com a sincronizacao, robots, token, fontes');
   const c2 = await deal('Cabo Lightning B');
   ok(c2.prices.length === 1 && c2.lowestPrice === 7.49 && c2.lowestVerified === false, 'link de um dominio que nao veio da pesquisa e descartado; sem confirmacao fica "por confirmar"', JSON.stringify(c2.prices));
 
+  // lojas noutra moeda (Polonia, Suica, Reino Unido) saem
+  routes.length = 0;
+  routes.push(groq('{"verdict":"razoavel","score":50,"prices":[{"store":"Expandeo","price":619,"url":"https://pl.expandeo.com/p/1"},{"store":"Fnac CH","price":99.95,"url":"https://www.fr.fnac.ch/a1"},{"store":"Argos","price":89,"url":"https://www.argos.co.uk/p/1"},{"store":"Worten","price":129.99,"url":"https://www.worten.pt/p/1"}],"summary":"Ok."}'));
+  routes.push({ match: (u) => u.includes('worten.pt'), reply: () => new Response('129,99 €') });
+  const c5 = await deal('Coluna Bose');
+  ok(c5.prices.length === 1 && c5.lowestPriceStore === 'Worten', 'lojas noutra moeda (.pl, .ch, .co.uk) sao descartadas', JSON.stringify(c5.prices));
+
   // link morto (404) sai; sem nenhum preco com link -> "incerto"
   routes.length = 0;
   routes.push(groq('{"verdict":"bom","score":90,"prices":[{"store":"Morta","price":2,"url":"https://morta.pt/x"},{"store":"Viva","price":6,"url":"https://viva.pt/x"}],"summary":"Bom."}'));
