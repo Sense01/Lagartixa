@@ -945,6 +945,9 @@ async function handleIdentify(request, env, cors) {
   const body = await request.json().catch(() => ({}));
   const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(body.image || ''));
   if (!m || m[2].length > 1500000) throw new HttpError('Imagem invalida ou grande demais (max. ~1 MB)');
+  // segunda imagem opcional: zoom a volta do codigo de barras / da etiqueta (le melhor o preco)
+  const z = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(body.zoom || ''));
+  const zoom = z && z[2].length <= 1500000 ? { url: body.zoom, type: z[1], data: z[2] } : null;
   const provider = pickProvider(env);
   if (!provider) throw new HttpError('Falta a chave da IA no Worker (AI_API_KEY)', 500);
   const dayKey = `id:${today()}`;
@@ -955,7 +958,10 @@ async function handleIdentify(request, env, cors) {
   }
   const prompt =
     'This photo was taken in a shop: a shelf price label, a product box or the product itself. ' +
-    'Read what is printed and identify the product. Answer with ONLY one JSON object:\n' +
+    (zoom ? 'The second image is a zoom of the first one, around the barcode / the label of this product. ' : '') +
+    'Read what is printed and identify the product. Look carefully everywhere for the price of THIS product ' +
+    '(big digits like 89, 89,99 or 89€ on the same label, a price tag or a sticker); if several labels are visible, ' +
+    'use only the label with this product name/barcode. Answer with ONLY one JSON object:\n' +
     '{"name":"brand and full model name as printed (e.g. JBL Charge Essential 2), or null",' +
     '"ean":"the 8/12/13-digit number printed under a barcode, digits only, or null",' +
     '"price":number or null (the shelf price of THIS product, in EUR, only if clearly readable),' +
@@ -968,7 +974,9 @@ async function handleIdentify(request, env, cors) {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': provider.key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: MODELS.anthropic, max_tokens: 400, messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: `image/${m[1]}`, data: m[2] } }, { type: 'text', text: prompt }] }] }),
+          { type: 'image', source: { type: 'base64', media_type: `image/${m[1]}`, data: m[2] } },
+          ...(zoom ? [{ type: 'image', source: { type: 'base64', media_type: `image/${zoom.type}`, data: zoom.data } }] : []),
+          { type: 'text', text: prompt }] }] }),
       });
       text = ((await readJson(res)).content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     } else {
@@ -980,7 +988,8 @@ async function handleIdentify(request, env, cors) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}` },
           body: JSON.stringify({ model, temperature: 0, max_completion_tokens: 1500, messages: [{ role: 'user', content: [
-            { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: body.image } }] }] }),
+            { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: body.image } },
+            ...(zoom ? [{ type: 'image_url', image_url: { url: zoom.url } }] : [])] }] }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) { text = data.choices?.[0]?.message?.content || ''; err = null; break; }
@@ -999,7 +1008,7 @@ async function handleIdentify(request, env, cors) {
   text = text.replace(/<think>[\s\S]*?<\/think>/gi, '');      // modelos que "pensam" em voz alta
   try { o = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)); } catch {}
   const ean = String(o.ean || '').replace(/\D/g, '');
-  const price = Number(o.price);
+  const price = typeof o.price === 'string' ? LiteX.parsePrice(o.price) : Number(o.price);
   if (env.CRAWLER_KV) await env.CRAWLER_KV.put(dayKey, String(used + 1), { expirationTtl: 2 * 86400 });
   return json({
     name: typeof o.name === 'string' ? cleanText(o.name).replace(/[<>]/g, '').slice(0, 160) || null : null,

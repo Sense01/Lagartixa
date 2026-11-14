@@ -1041,3 +1041,15 @@ body.sheet-open { overflow: hidden; }
 .scan-status .cmp-row span { display: flex; flex-direction: column; }
 @media (max-width: 640px) { .scan-form { grid-template-columns: 1fr 1fr; } .scan-form label:first-child, .scan-form button { grid-column: 1 / -1; } }
 .scan-save { color: var(--ok); }
+
+/* IA no limite por minuto: barra que desce até zero */
+.cooldown { padding: 0.7rem 0.8rem; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent); display: grid; gap: 0.45rem; font-size: 0.8rem; color: var(--muted); }
+.cd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.cd-head b { color: var(--text); font-size: 0.85rem; }
+.cd-left { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--warn); }
+.cd-track { height: 6px; border-radius: 999px; background: var(--toggle-off); overflow: hidden; }
+.cd-track i { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--warn); transform-origin: left; animation: cd-down linear forwards; }
+@keyframes cd-down { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.cooldown small { line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .cd-track i { animation: cd-down linear forwards !important; } }

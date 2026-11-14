@@ -74,7 +74,7 @@ const Barcode = (() => {
           if (first < 0) continue;
           code = first + left.map((m) => m.digit).join('') + right.map((m) => m.digit).join('');
         } else code = left.map((m) => m.digit).join('') + right.map((m) => m.digit).join('');
-        if (validGtin(code)) out.push(code);
+        if (validGtin(code)) out.push({ code, i, count });
       }
     }
     return out;
@@ -100,11 +100,13 @@ const Barcode = (() => {
     for (const t of [0.5, 0.4, 0.6]) {
       const { runs, startsDark } = runsOf(gray, min + (max - min) * t);
       if (runs.length < 45) continue;
+      // posição do código na linha (em amostras): serve para fazer zoom à etiqueta
+      const span = (rs, hit) => { let a = 0; for (let k = 0; k < hit.i; k++) a += rs[k]; let b = a; for (let k = hit.i; k < hit.i + hit.count; k++) b += rs[k]; return [a, b]; };
       const fwd = decodeRuns(runs, startsDark);
-      if (fwd.length) return fwd[0];
+      if (fwd.length) { const [a, b] = span(runs, fwd[0]); return { code: fwd[0].code, start: a, end: b }; }
       const rev = runs.slice().reverse();                  // código de pernas para o ar
       const back = decodeRuns(rev, (runs.length % 2 === 1) === startsDark);
-      if (back.length) return back[0];
+      if (back.length) { const [a, b] = span(rev, back[0]); return { code: back[0].code, start: gray.length - b, end: gray.length - a }; }
     }
     return null;
   }
@@ -122,6 +124,7 @@ const Barcode = (() => {
     return deepScan(img, { angles, spacing: 5, step: 0.5 });
   }
 
+  let lastHit = null;
   function deepScan({ data, width, height }, { angles, spacing, rows = 24, step = 1, deadline = Infinity }) {
     // cinzentos uma vez
     const gray = new Float32Array(width * height);
@@ -144,19 +147,22 @@ const Barcode = (() => {
         const off = spacing ? (k - n / 2) * spacing : (((k + 1) / (rows + 1)) - 0.5) * (Math.abs(dx) > Math.abs(dy) ? height : width);
         const ox = cx + nx * off, oy = cy + ny * off;
         // percorre a linha inteira; média de 5 amostras na perpendicular (tira ruído sem esbater as barras)
-        let len = 0;
+        let len = 0, tStart = null;
         for (let t = -diag / 2; t <= diag / 2; t += step) {
           const px = ox + dx * t, py = oy + dy * t;
           let sum = 0, c = 0;
           for (let o = -2; o <= 2; o++) { const v = at(px + nx * o, py + ny * o); if (v >= 0) { sum += v; c++; } }
-          if (c) buf[len++] = sum / c; else if (len) break;
+          if (c) { if (tStart === null) tStart = t; buf[len++] = sum / c; } else if (len) break;
         }
         if (len < 60) continue;
-        const code = scanLine(buf.subarray(0, len));
-        if (code) {
-          const v = (votes.get(code) || 0) + 1;
-          votes.set(code, v);
-          if (v >= 2) return code;
+        const hit = scanLine(buf.subarray(0, len));
+        if (hit) {
+          const p = (k) => [ox + dx * (tStart + k * step), oy + dy * (tStart + k * step)];
+          const [x0, y0] = p(hit.start), [x1, y1] = p(hit.end);
+          lastHit = { x0, y0, x1, y1, w: width, h: height };      // onde está o código (na imagem analisada)
+          const v = (votes.get(hit.code) || 0) + 1;
+          votes.set(hit.code, v);
+          if (v >= 2) return hit.code;
         }
       }
     }
@@ -179,11 +185,16 @@ const Barcode = (() => {
     : null;
 
   async function detect(src, w, h, maxW = 1280) {
+    lastHit = null;
     if (native) {
       try {
         const found = await native.detect(src);
-        const code = found.map((b) => b.rawValue).find(validGtin);
-        if (code) return code;
+        const b = found.find((x) => validGtin(x.rawValue));
+        if (b) {
+          const r = b.boundingBox;
+          lastHit = { x0: r.x, y0: r.y + r.height / 2, x1: r.x + r.width, y1: r.y + r.height / 2, w, h };
+          return b.rawValue;
+        }
       } catch { /* cai para o descodificador próprio */ }
     }
     return decodeImageData(frameData(src, w, h, maxW));
@@ -195,12 +206,41 @@ const Barcode = (() => {
       const img = new Image();
       img.src = url;
       await img.decode();
-      // 1) rápido; 2) procura exaustiva (ângulos, zoom) na foto; 3) com mais resolução se a foto for grande
-      const w = img.naturalWidth, h = img.naturalHeight;
-      return (await detect(img, w, h)) ||
-        exhaustiveScan(frameData(img, w, h, 1400)) ||
-        (Math.max(w, h) > 1500 ? exhaustiveScan(frameData(img, w, h, 2400)) : null);
+      return (await scanImage(img, img.naturalWidth, img.naturalHeight)).code;
     } finally { URL.revokeObjectURL(url); }
+  }
+
+  /**
+   * Foto: 1) rápido; 2) procura exaustiva (ângulos, zoom); 3) com mais resolução se for grande.
+   * Devolve também onde está o código, em píxeis da foto original (para fazer zoom à etiqueta).
+   */
+  async function scanImage(img, w, h) {
+    let code = await detect(img, w, h);
+    if (!code) code = exhaustiveScan(frameData(img, w, h, 1400));
+    if (!code && Math.max(w, h) > 1500) code = exhaustiveScan(frameData(img, w, h, 2400));
+    let box = null;
+    if (code && lastHit) {
+      const k = w / lastHit.w;
+      box = { x0: lastHit.x0 * k, y0: lastHit.y0 * k, x1: lastHit.x1 * k, y1: lastHit.y1 * k };
+    }
+    return { code, box };
+  }
+
+  /** zoom à volta do código de barras: a etiqueta (nome e preço) costuma estar ao lado ou por cima */
+  function zoomDataUrl(img, w, h, box) {
+    let cx, cy, side;
+    if (box) {
+      const bw = Math.hypot(box.x1 - box.x0, box.y1 - box.y0);
+      cx = (box.x0 + box.x1) / 2; cy = (box.y0 + box.y1) / 2 - bw * 0.6;   // um pouco acima do código
+      side = Math.min(Math.max(w, h), bw * 3.4);
+    } else { cx = w / 2; cy = h / 2; side = Math.min(w, h) * 0.6; }        // sem código: o centro da foto
+    const x = Math.max(0, Math.min(w - side, cx - side / 2)), y = Math.max(0, Math.min(h - side, cy - side / 2));
+    const sw = Math.min(side, w), sh = Math.min(side, h);
+    const c = document.createElement('canvas');
+    const out = Math.min(1280, Math.max(640, Math.round(Math.max(sw, sh) * 2)));   // amplia até 2x
+    c.width = Math.round(out * sw / Math.max(sw, sh)); c.height = Math.round(out * sh / Math.max(sw, sh));
+    c.getContext('2d').drawImage(img, x, y, sw, sh, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85);
   }
 
   /* ---------- câmara ao vivo ---------- */
@@ -216,7 +256,12 @@ const Barcode = (() => {
       busy = true;
       try {
         const code = await detect(video, video.videoWidth, video.videoHeight);
-        if (code) { const frame = await photoDataUrl(video, video.videoWidth, video.videoHeight); stopCamera(); onCode(code, frame); }
+        if (code) {
+          const W = video.videoWidth, H = video.videoHeight, k = lastHit ? W / lastHit.w : 1;
+          const box = lastHit && { x0: lastHit.x0 * k, y0: lastHit.y0 * k, x1: lastHit.x1 * k, y1: lastHit.y1 * k };
+          const photo = { image: await photoDataUrl(video, W, H), zoom: zoomDataUrl(video, W, H, box) };
+          stopCamera(); onCode(code, photo);
+        }
       } finally { busy = false; }
     }, 250);
   }
@@ -255,7 +300,7 @@ const Barcode = (() => {
     if (/Faltam name\/price/.test(data.error || '') || (res.ok && !Array.isArray(data.prices))) {
       throw new Error('O teu Worker ainda é a versão antiga: cola o worker/cloudflare-worker.js novo na Cloudflare (Edit code → colar → Deploy) e tenta de novo.');
     }
-    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok || data.error) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { retryAfter: +data.retryAfter || 0 });
     if (!Array.isArray(data.prices)) throw new Error('O Worker é de uma versão antiga: cola o worker/cloudflare-worker.js novo na Cloudflare e faz Deploy');
     return data;
   }
@@ -268,16 +313,21 @@ const Barcode = (() => {
     c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
     return c.toDataURL('image/jpeg', 0.82);
   }
-  async function fileDataUrl(file) {
+  /** lê uma foto: o código (com a posição) e as duas imagens para a IA (foto inteira + zoom à etiqueta) */
+  async function readPhoto(file) {
     const url = URL.createObjectURL(file);
-    try { const img = new Image(); img.src = url; await img.decode(); return await photoDataUrl(img, img.naturalWidth, img.naturalHeight); }
-    finally { URL.revokeObjectURL(url); }
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const { code, box } = await scanImage(img, w, h).catch(() => ({ code: null, box: null }));
+      return { code, photo: { image: await photoDataUrl(img, w, h), zoom: zoomDataUrl(img, w, h, box) } };
+    } finally { URL.revokeObjectURL(url); }
   }
-  async function identify(image) {
-    const res = await workerPost('/identify', { image });
+  async function identify(photo) {
+    const res = await workerPost('/identify', { image: photo.image, zoom: photo.zoom });
     const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     if (res.status === 404 || /So GET|Use \?url/.test(data.error || '')) throw new Error('o teu Worker ainda não lê fotos (atualiza-o)');
-    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok || data.error) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { retryAfter: +data.retryAfter || 0 });
     return data;
   }
 
@@ -311,9 +361,11 @@ const Barcode = (() => {
       if (code) {
         status(`${head({ code, price })}${localHtml}<div class="deal-box loading">🔎 A procurar este produto e os preços noutras lojas…</div>`);
         try { d = await onlinePrices(code, price, country); name = d.productName; } catch (e) { err = e; }
+
       }
       // código interno da loja (a IA não o conhece) ou nenhum código na foto: ler a etiqueta
-      if (photo && (!d || !d.productName || !d.prices.length) && !/antiga|Worker/.test(err?.message || '')) {
+      // à espera da IA (limite por minuto): não gastar outro pedido a ler a foto agora
+      if (photo && !err?.retryAfter && (!d || !d.productName || !d.prices.length) && !/antiga|Worker/.test(err?.message || '')) {
         status(`${head({ code, price })}${localHtml}<div class="deal-box loading">🔎 ${code ? 'Este código não diz que produto é — ' : ''}a ler a etiqueta da foto…</div>`);
         try {
           const id = await identify(photo);
@@ -325,6 +377,14 @@ const Barcode = (() => {
             err = null;
           } else if (!d) err = new Error('Não consegui ler o produto na foto. Tira outra com o nome ou o código bem visíveis, ou escreve o número.');
         } catch (e) { err = d ? null : e; }
+      }
+      if (!d && err?.retryAfter) {
+        // limite por minuto da IA: barra até zero e volta a pesquisar sozinho
+        const wait = Math.min(120, err.retryAfter + 2), until = Date.now() + wait * 1000;
+        status(`${head({ code, price })}${localHtml}${cooldownHtml(until)}`);
+        clearTimeout(lookup.retry);
+        lookup.retry = setTimeout(() => { if (!$('scanPanel').classList.contains('hidden')) lookup(code, { photo }); }, wait * 1000);
+        return;
       }
       if (!d) { status(`${head({ code, price })}${localHtml}<div class="deal-box v-caro">⚠️ ${esc(err?.message || 'Sem resultado')}</div>`); return; }
       const cheaper = price && d.lowestPrice != null && d.lowestPrice < price ? ` · <b class="scan-save">${fmtPrice(price - d.lowestPrice)} mais barato online</b>` : '';
@@ -353,8 +413,8 @@ const Barcode = (() => {
       e.target.value = '';
       if (!f) return;
       status('🔎 A procurar o código de barras na foto (em vários ângulos e com zoom)…');
-      const [code, photo] = await Promise.all([decodeFile(f).catch(() => null), fileDataUrl(f).catch(() => null)]);
-      if (code || photo) lookup(code, { photo });
+      const r = await readPhoto(f).catch(() => null);
+      if (r) lookup(r.code, { photo: r.photo });
       else status('⚠️ Não consegui abrir esta foto. Tenta outra, ou escreve o número.');
     };
     $('scanFile').addEventListener('change', onFile);

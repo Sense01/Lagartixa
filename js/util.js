@@ -87,6 +87,27 @@ const Sheets = (() => {
   return { open, close, toggle, current };
 })();
 
+/* ---------- limite por minuto da IA: "Pesquisa indisponível" com uma barra que desce até zero ---------- */
+/** until = momento (ms) em que a IA volta a estar disponível */
+function cooldownHtml(until, extra = '') {
+  const total = Math.max(1, Math.round((until - (cooldownHtml.start[until] ||= Date.now())) / 1000));
+  const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  const done = total - left;
+  return `<div class="cooldown" role="status">
+      <div class="cd-head"><b>⏸️ Pesquisa indisponível</b><span class="cd-left" data-until="${until}">${left} s</span></div>
+      <div class="cd-track"><i style="animation-duration:${total}s;animation-delay:-${done}s"></i></div>
+      <small>A IA atingiu o limite de pedidos por minuto. Volta a pesquisar sozinha quando a barra chegar a zero.${extra}</small>
+    </div>`;
+}
+cooldownHtml.start = {};
+// os segundos que faltam, em todas as barras visíveis
+if (typeof document !== 'undefined') setInterval(() => {
+  document.querySelectorAll('.cd-left[data-until]').forEach((el) => {
+    const left = Math.max(0, Math.ceil((+el.dataset.until - Date.now()) / 1000));
+    el.textContent = left ? `${left} s` : 'a retomar…';
+  });
+}, 500);
+
 function toast(msg, ms = 4000) {
   const el = $('toast');
   el.textContent = msg;

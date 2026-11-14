@@ -26,7 +26,9 @@ const verdictKey = (v) => String(v || 'incerto').normalize('NFD').replace(/[̀-�
 
 function dealHtml(d) {
   d = { ...d };
-  if (d.loading) return `<div class="deal-box loading">${d.cooldown ? '⏳ A IA está em cooldown — continua sozinha daqui a pouco' : '🔎 A pesquisar preços na web…'}</div>`;
+  if (d.loading && d.until) return cooldownHtml(d.until);
+  if (d.loading) return `<div class="deal-box loading">🔎 A pesquisar preços na web…</div>`;
+  if (d.error && d.until && d.until > Date.now()) return cooldownHtml(d.until);
   if (d.error) return `<div class="deal-box v-caro">⚠️ ${esc(d.error)}</div>`;
   const [label, cls] = VERDICTS[verdictKey(d.verdict)] || VERDICTS.incerto;
   // regra: um preço só aparece com o link da página onde foi visto
@@ -55,7 +57,7 @@ function dealHtml(d) {
     </div>`;
 }
 
-async function evaluateDeal(it, { force = false } = {}) {
+async function evaluateDeal(it, { force = false, retry = true } = {}) {
   const base = workerBase();
   if (!base) {
     it.deal = { error: 'Configura "O meu proxy" (o teu Worker) para usar esta função' };
@@ -99,6 +101,12 @@ async function evaluateDeal(it, { force = false } = {}) {
   } catch (e) {
     it.deal = { error: /Failed to fetch|Load failed|NetworkError/.test(e.message)
       ? 'O Worker não respondeu — confirma que tem a versão nova (com /deal)' : e.message, retryAfter: e.retryAfter };
+    // limite por minuto: mostra a barra e tenta outra vez sozinho quando chegar a zero
+    if (e.retryAfter) {
+      const wait = Math.min(120, e.retryAfter + 2);
+      it.deal.until = Date.now() + wait * 1000;
+      if (retry) setTimeout(() => { if (it.deal?.until) evaluateDeal(it, { force: true }); }, wait * 1000);
+    }
   }
   refreshCard(it);
   return it.deal;
@@ -111,14 +119,14 @@ async function autoEvaluateDeals() {
   toast(`📊 A comparar preços de ${top.length} produto(s) na web…`);
   let good = 0, done = 0;
   for (const it of top) {
-    let d = await evaluateDeal(it);
-    // limite por minuto do plano gratuito: espera o tempo indicado e tenta de novo (ate 3 vezes)
+    let d = await evaluateDeal(it, { retry: false });
+    // limite por minuto do plano gratuito: barra até zero e tenta de novo (até 3 vezes)
     for (let t = 0; t < 3 && d?.retryAfter; t++) {
-      const wait = Math.min(90, d.retryAfter + 2);
-      it.deal = { loading: true, cooldown: true }; refreshCard(it);
-      toast(`⏳ A IA está em cooldown — continuo daqui a ${wait} s (${done}/${top.length})`, 5000);
-      await new Promise((r) => setTimeout(r, wait * 1000));
-      d = await evaluateDeal(it, { force: true });
+      const until = d.until || Date.now() + Math.min(120, d.retryAfter + 2) * 1000;
+      it.deal = { loading: true, until }; refreshCard(it);
+      toast(`⏸️ Pesquisa indisponível — a IA volta daqui a ${Math.ceil((until - Date.now()) / 1000)} s (${done}/${top.length})`, 5000);
+      await new Promise((r) => setTimeout(r, Math.max(0, until - Date.now())));
+      d = await evaluateDeal(it, { force: true, retry: false });
     }
     if (d?.error) {
       if (d.retryAfter || /proxy|Worker|API_KEY|chave|autorizada|limite diario|Limite diário/i.test(d.error)) { toast(`IA: ${d.error}`, 6000); break; }
