@@ -218,6 +218,10 @@ const Barcode = (() => {
       body: JSON.stringify({ ean, price: price || undefined, country, currency: 'EUR' }),
     });
     const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    // "Faltam name/price" = o Worker antigo, que ainda não conhece a pesquisa só com o código
+    if (/Faltam name\/price/.test(data.error || '') || (res.ok && !Array.isArray(data.prices))) {
+      throw new Error('O teu Worker ainda é a versão antiga: cola o worker/cloudflare-worker.js novo na Cloudflare (Edit code → colar → Deploy) e tenta de novo.');
+    }
     if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
     if (!Array.isArray(data.prices)) throw new Error('O Worker é de uma versão antiga: cola o worker/cloudflare-worker.js novo na Cloudflare e faz Deploy');
     return data;

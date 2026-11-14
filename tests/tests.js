@@ -349,6 +349,9 @@
     await Translate.expand(['dobradiça'], { ask });
     ok(calls === 1 && Translate.expandSync(['dobradiça']).all.includes('bisagra'), 'tradução da IA fica guardada (não volta a pedir)');
     const off = await Translate.expand(['parafuso'], { ask: async () => { throw new Error('sem Worker'); } });
+    let askedCap = null;
+    const cap = await Translate.expand(['Lightning', 'Monitor'], { ask: async (t) => { askedCap = t; return { Lightning: { pt: ['relâmpago'], fr: ['éclair'], es: ['rayo'], de: ['blitz'] } }; } });
+    ok(askedCap === null && !cap.all.includes('relâmpago') && cap.all.includes('écran'), 'maiúscula inicial = nome próprio ("Lightning"): a IA não traduz; o dicionário continua ("Monitor" → écran)', { askedCap, all: cap.all });
     ok(eq(off.all, ['parafuso']), 'sem Worker ou sem IA: a pesquisa segue com o termo original');
 
     // a pesquisa apanha o mesmo produto nas 4 línguas

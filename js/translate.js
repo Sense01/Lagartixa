@@ -166,13 +166,15 @@ const Translate = (() => {
     return hit ? out : null;
   }
 
-  /** só vale a pena traduzir termos com palavras a sério (não "RTX 5070", "USB" nem "40460") */
-  const translatable = (term) => String(term).split(/\s+/).some((w) => /^[\p{L}-]{3,}$/u.test(w) && w !== w.toUpperCase());
+  /** só vale a pena traduzir termos com palavras a sério (não "RTX 5070", "USB" nem "40460");
+      com maiúscula inicial ("Lightning", "Switch") é nome próprio ou marca: a IA não traduz (o dicionário sim) */
+  const properName = (term) => /^\p{Lu}/u.test(String(term).trim());
+  const translatable = (term) => !properName(term) && String(term).split(/\s+/).some((w) => /^[\p{L}-]{3,}$/u.test(w) && w !== w.toUpperCase());
 
   function resolve(term) {
     const row = rowOf(term);
     if (row) return { tr: fromRow(row), how: 'dict' };
-    const c = saved()[norm(term)];
+    const c = properName(term) ? null : saved()[norm(term)];
     if (c) return { tr: c, how: 'ia' };
     const w = wordwise(term);
     return w ? { tr: w, how: 'words' } : { tr: null, how: null };
