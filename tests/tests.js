@@ -442,6 +442,13 @@
       const got = Barcode.decodeImageData(draw(ean13, opt));
       ok(got === ean13, `lê o código: ${label}`, got);
     }
+    // foto real de uma etiqueta numa loja: código pequeno, torto (~17°) e em perspetiva
+    try {
+      const blob = await (await fetch('label-boulanger.png')).blob();
+      const t = performance.now();
+      const got = await Barcode.decodeFile(new File([blob], 'label.png', { type: 'image/png' }));
+      ok(got === '1200130036194', `foto real de etiqueta (código torto e pequeno) lida em ${Math.round(performance.now() - t)} ms`, got);
+    } catch (e) { ok(false, 'foto real de etiqueta', e.message); }
     const blank = document.createElement('canvas'); blank.width = 400; blank.height = 200;
     const bx = blank.getContext('2d'); bx.fillStyle = '#fff'; bx.fillRect(0, 0, 400, 200); bx.fillStyle = '#000'; bx.font = '40px sans-serif'; bx.fillText('Sem código 123', 20, 110);
     ok(Barcode.decodeImageData(bx.getImageData(0, 0, 400, 200)) === null, 'imagem sem código: nada (não inventa números)');

@@ -229,6 +229,28 @@ console.log('\nLeitor de codigos de barras (so o EAN)');
 }
 
 /* ======================================================================== */
+console.log('\nFoto de uma etiqueta (IA com visao)');
+{
+  routes.length = 0;
+  let sent = null;
+  routes.push({ match: (u) => u.includes('groq.com'), reply: (u, o) => {
+    const b = JSON.parse(o.body);
+    if (b.messages[0].content[1]?.type === 'image_url') { sent = b; return new Response(JSON.stringify({ choices: [{ message: { content: '{"name":"JBL Charge Essential 2","ean":"1200130036194","price":89,"store":"Boulanger"}' } }] })); }
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"verdict":"incerto","score":null,"prices":[{"store":"Fnac","price":99.99,"url":"https://www.fnac.pt/jbl"}],"summary":"Ok."}' } }] }));
+  } });
+  routes.push({ match: (u) => u.includes('fnac.pt'), reply: () => new Response('99,99 €') });
+  const env = { CRAWLER_KV: makeKV(), AI_API_KEY: 'gsk_x' };
+  const img = 'data:image/jpeg;base64,' + Buffer.from('x'.repeat(300)).toString('base64');
+  const r = await W.fetch(req('/identify', { method: 'POST', body: { image: img } }), env, waitCtx);
+  const j = await r.json();
+  ok(r.status === 200 && j.name === 'JBL Charge Essential 2' && j.price === 89 && j.ean === '1200130036194', '/identify le nome, EAN e preco da etiqueta', JSON.stringify(j));
+  ok(sent && /llama-4/.test(sent.model) && sent.messages[0].content[1].image_url.url === img, 'a foto vai para um modelo com visao');
+  ok((await W.fetch(req('/identify', { method: 'POST', body: { image: 'http://evil/x.png' } }), env, waitCtx)).status === 400, 'so aceita imagens em data:image/...');
+  const d = await (await W.fetch(req('/deal', { method: 'POST', body: { name: 'JBL Charge Essential 2', lookup: true, country: 'PT' } }), env, waitCtx)).json();
+  ok(d.verdict === 'incerto' && d.prices.length === 1, 'procurar precos pelo nome lido, sem preco: precos sem veredicto', JSON.stringify(d));
+}
+
+/* ======================================================================== */
 console.log('\nVerificacao automatica (Cron)');
 {
   const dev = await makeDevice();

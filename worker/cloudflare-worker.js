@@ -4,6 +4,7 @@
  *   GET  /?url=https://site/pagina   proxy CORS (a app usa-o para ler as lojas)
  *   POST /deal                       "e bom negocio?" (IA com pesquisa web)
  *   POST /translate                  palavras-chave em PT/FR/ES/DE (IA sem pesquisa web)
+ *   POST /identify                   foto de uma etiqueta/embalagem -> nome, EAN e preco (IA com visao)
  *   GET  /state  POST /sync          estado dos alertas / sincronizar seguidos e pesquisas
  *   POST /run                        verificar agora (o Cron faz o mesmo de hora a hora)
  *   GET  /push/key  POST /push/subscribe  POST /push/test   notificacoes push
@@ -619,6 +620,7 @@ const MODELS = {
   // Groq: tenta pela ordem; o primeiro a que a conta tiver acesso e usado
   groq: ['openai/gpt-oss-120b', 'groq/compound', 'openai/gpt-oss-20b', 'groq/compound-mini'],
   groqPlain: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'],   // sem pesquisa web (traducao): o modelo pequeno primeiro
+  groqVision: ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'],   // ler fotos
   xai: 'grok-4.7',
   anthropic: 'claude-haiku-5-5',
 };
@@ -672,6 +674,7 @@ export default {
     const api = {
       '/deal': () => handleDeal(request, env, ctx, cors),
       '/translate': () => handleTranslate(request, env, ctx, cors),
+      '/identify': () => handleIdentify(request, env, cors),
       '/state': () => handleState(env, cors),
       '/sync': () => handleSync(request, env, cors),
       '/history': () => handleHistory(request, env, cors),
@@ -1201,7 +1204,8 @@ async function handleDeal(request, env, ctx, cors) {
   const name = String(item.name || '').slice(0, 200).trim();
   const ean = String(item.ean || '').replace(/\D/g, '');
   const scan = !name && validGtin(ean);                 // leitor de codigos de barras: so o EAN (e talvez o preco da prateleira)
-  const price = item.price == null || item.price === '' ? (scan ? null : NaN) : Number(item.price);
+  // sem preco (leitor numa loja, ou produto identificado pela foto): mostra os precos, sem veredicto
+  const price = item.price == null || item.price === '' ? ((scan || item.lookup) ? null : NaN) : Number(item.price);
   if ((!name && !scan) || (price !== null && !(price > 0 && isFinite(price)))) throw new HttpError(scan || ean ? 'EAN invalido ou preco invalido' : 'Faltam name/price');
   const currency = String(item.currency || 'EUR').slice(0, 5);
   const store = String(item.store || '').slice(0, 80);
@@ -1229,7 +1233,9 @@ async function handleDeal(request, env, ctx, cors) {
       ? `Product: identify it from its barcode, EAN/GTIN ${ean} (search the number itself first). ` +
         'The buyer scanned it in a physical shop and wants the prices online.\n' +
         (price ? `Price on the shelf: ${price} ${currency}` : 'Price on the shelf: not given (then use "incerto" as verdict)')
-      : `Product: "${name}"\nPrice found: ${price} ${currency}` + (item.oldPrice ? ` (store says previous price ${item.oldPrice} ${currency})` : '')) +
+      : `Product: "${name}"\n` + (price
+        ? `Price found: ${price} ${currency}` + (item.oldPrice ? ` (store says previous price ${item.oldPrice} ${currency})` : '')
+        : 'The buyer saw it in a physical shop and wants the prices online. Price on the shelf: not given (then use "incerto" as verdict)')) +
     (store ? `\nStore: ${store}` : '') +
     (ean && !scan ? `\nEAN: ${ean}` : '') +
     (h && h.points > 1 ? `\nOur own price tracking at this store since ${h.since}: min ${h.min}, max ${h.max} (${h.points} observations).` : '') +
@@ -1276,8 +1282,8 @@ async function handleDeal(request, env, ctx, cors) {
   if (scan) {
     result.ean = ean;
     result.productName = typeof result.productName === 'string' ? cleanText(result.productName).slice(0, 160) || null : null;
-    if (!price) { result.verdict = 'incerto'; result.score = null; }
   }
+  if (!price) { result.verdict = 'incerto'; result.score = null; }
   result.checkedAt = new Date().toISOString();
   result.searches = out.searches ?? null;
   result.provider = provider.name + (out.model ? ` (${out.model})` : '');
@@ -1508,6 +1514,73 @@ async function askPlain(p, prompt) {
     if (res.status === 429) err.retryAfter = +(res.headers.get('retry-after') || 20);
   }
   throw err || new Error('Nenhum modelo disponivel');
+}
+
+/** foto de uma etiqueta de preco ou embalagem: a IA le o nome do produto, o EAN e o preco */
+async function handleIdentify(request, env, cors) {
+  if (request.method !== 'POST') throw new HttpError('Use POST', 405);
+  const body = await request.json().catch(() => ({}));
+  const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(body.image || ''));
+  if (!m || m[2].length > 1500000) throw new HttpError('Imagem invalida ou grande demais (max. ~1 MB)');
+  const provider = pickProvider(env);
+  if (!provider) throw new HttpError('Falta a chave da IA no Worker (AI_API_KEY)', 500);
+  const dayKey = `id:${today()}`;
+  let used = 0;
+  if (env.CRAWLER_KV) {
+    used = Number(await env.CRAWLER_KV.get(dayKey)) || 0;
+    if (used >= DEAL_DAILY_LIMIT) throw new HttpError(`Limite diario de ${DEAL_DAILY_LIMIT} fotos atingido`, 429);
+  }
+  const prompt =
+    'This photo was taken in a shop: a shelf price label, a product box or the product itself. ' +
+    'Read what is printed and identify the product. Answer with ONLY one JSON object:\n' +
+    '{"name":"brand and full model name as printed (e.g. JBL Charge Essential 2), or null",' +
+    '"ean":"the 8/12/13-digit number printed under a barcode, digits only, or null",' +
+    '"price":number or null (the shelf price of THIS product, in EUR, only if clearly readable),' +
+    '"store":"shop name if visible, or null"}\n' +
+    'Do not guess: use null for anything you cannot read.';
+  let text = '';
+  try {
+    if (provider.name === 'anthropic') {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': provider.key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: MODELS.anthropic, max_tokens: 400, messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: `image/${m[1]}`, data: m[2] } }, { type: 'text', text: prompt }] }] }),
+      });
+      text = ((await readJson(res)).content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+    } else {
+      const url = provider.name === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
+      let err;
+      for (const model of provider.name === 'groq' ? MODELS.groqVision : [MODELS.xai]) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}` },
+          body: JSON.stringify({ model, temperature: 0, max_completion_tokens: 400, messages: [{ role: 'user', content: [
+            { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: body.image } }] }] }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) { text = data.choices?.[0]?.message?.content || ''; err = null; break; }
+        err = new Error(data?.error?.message || `HTTP ${res.status}`);
+        if (res.status === 429) err.retryAfter = +(res.headers.get('retry-after') || 20);
+      }
+      if (err) throw err;
+    }
+  } catch (e) {
+    const err = new HttpError(`${provider.name}: ${e.message}`, e.retryAfter ? 429 : 502);
+    if (e.retryAfter) err.retryAfter = Math.min(120, Math.ceil(e.retryAfter));
+    throw err;
+  }
+  let o = {};
+  try { o = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)); } catch {}
+  const ean = String(o.ean || '').replace(/\D/g, '');
+  const price = Number(o.price);
+  if (env.CRAWLER_KV) await env.CRAWLER_KV.put(dayKey, String(used + 1), { expirationTtl: 2 * 86400 });
+  return json({
+    name: typeof o.name === 'string' ? cleanText(o.name).replace(/[<>]/g, '').slice(0, 160) || null : null,
+    ean: validGtin(ean) ? ean : null,
+    price: price > 0 && price < 100000 ? Math.round(price * 100) / 100 : null,
+    store: typeof o.store === 'string' ? cleanText(o.store).replace(/[<>]/g, '').slice(0, 60) || null : null,
+  }, 200, cors);
 }
 
 async function handleTranslate(request, env, ctx, cors) {
