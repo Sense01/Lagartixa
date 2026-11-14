@@ -620,7 +620,8 @@ const MODELS = {
   // Groq: tenta pela ordem; o primeiro a que a conta tiver acesso e usado
   groq: ['openai/gpt-oss-120b', 'groq/compound', 'openai/gpt-oss-20b', 'groq/compound-mini'],
   groqPlain: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'],   // sem pesquisa web (traducao): o modelo pequeno primeiro
-  groqVision: ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'],   // ler fotos
+  // ler fotos (a Groq muda estes modelos com frequencia: o primeiro que existir e usado)
+  groqVision: ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'meta-models/muse-spark-open', 'meta-llama/llama-4-scout-17b-16e-instruct'],
   xai: 'grok-4.7',
   anthropic: 'claude-haiku-5-5',
 };
@@ -1551,17 +1552,19 @@ async function handleIdentify(request, env, cors) {
     } else {
       const url = provider.name === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
       let err;
+      const tried = [];
       for (const model of provider.name === 'groq' ? MODELS.groqVision : [MODELS.xai]) {
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}` },
-          body: JSON.stringify({ model, temperature: 0, max_completion_tokens: 400, messages: [{ role: 'user', content: [
+          body: JSON.stringify({ model, temperature: 0, max_completion_tokens: 1500, messages: [{ role: 'user', content: [
             { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: body.image } }] }] }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) { text = data.choices?.[0]?.message?.content || ''; err = null; break; }
-        err = new Error(data?.error?.message || `HTTP ${res.status}`);
-        if (res.status === 429) err.retryAfter = +(res.headers.get('retry-after') || 20);
+        tried.push(`${model}: ${data?.error?.message || `HTTP ${res.status}`}`.slice(0, 160));
+        err = new Error(tried.join(' | '));
+        if (res.status === 429) { err.retryAfter = +(res.headers.get('retry-after') || 20); break; }
       }
       if (err) throw err;
     }
@@ -1571,6 +1574,7 @@ async function handleIdentify(request, env, cors) {
     throw err;
   }
   let o = {};
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, '');      // modelos que "pensam" em voz alta
   try { o = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)); } catch {}
   const ean = String(o.ean || '').replace(/\D/g, '');
   const price = Number(o.price);
