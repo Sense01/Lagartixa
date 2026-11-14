@@ -93,20 +93,14 @@ function cooldownHtml(until, extra = '') {
   const total = Math.max(1, Math.round((until - (cooldownHtml.start[until] ||= Date.now())) / 1000));
   const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
   const done = total - left;
-  return `<div class="cooldown" role="status">
-      <div class="cd-head"><b>⏸️ Pesquisa indisponível</b><span class="cd-left" data-until="${until}">${left} s</span></div>
+  // só a barra: ela própria mostra quanto falta (sem contador de segundos a repetir o mesmo)
+  return `<div class="cooldown" role="status" aria-label="Pesquisa em pausa, ${left} segundos">
+      <b>Pesquisa em pausa</b>
       <div class="cd-track"><i style="animation-duration:${total}s;animation-delay:-${done}s"></i></div>
-      <small>A IA atingiu o limite de pedidos por minuto. Volta a pesquisar sozinha quando a barra chegar a zero.${extra}</small>
+      <small>A IA precisa de um momento. Continua sozinha quando a barra acabar.${extra}</small>
     </div>`;
 }
 cooldownHtml.start = {};
-// os segundos que faltam, em todas as barras visíveis
-if (typeof document !== 'undefined') setInterval(() => {
-  document.querySelectorAll('.cd-left[data-until]').forEach((el) => {
-    const left = Math.max(0, Math.ceil((+el.dataset.until - Date.now()) / 1000));
-    el.textContent = left ? `${left} s` : 'a retomar…';
-  });
-}, 500);
 
 function toast(msg, ms = 4000) {
   const el = $('toast');

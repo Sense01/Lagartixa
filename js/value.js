@@ -167,7 +167,7 @@ const Value = (() => {
   }
 
   function valueLine(it) {
-    if (it.deal?.loading) return `<div class="value v-flat">📊 <b>${it.deal.cooldown ? 'A IA está em cooldown…' : 'a comparar preços na web…'}</b></div>`;
+    if (it.deal?.loading || it.deal?.until > Date.now()) return '';   // a caixa de espera por baixo já diz isto
     const v = info(it);
     if (!v || v.basis === 'none') return '';
     const cls = v.weak ? 'v-flat v-weak' : v.pct >= BASIS[v.basis].min ? 'v-up' : v.pct <= -5 ? 'v-down' : 'v-flat';

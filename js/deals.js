@@ -26,7 +26,7 @@ const verdictKey = (v) => String(v || 'incerto').normalize('NFD').replace(/[̀-�
 
 function dealHtml(d) {
   if (d.loading && d.until) return cooldownHtml(d.until);
-  if (d.loading) return `<div class="deal-box loading">🔎 A pesquisar preços na web…</div>`;
+  if (d.loading) return `<div class="deal-box loading">A comparar preços noutras lojas…</div>`;
   if (d.error && d.until && d.until > Date.now()) return cooldownHtml(d.until);
   if (d.error) return `<div class="deal-box v-caro">⚠️ ${esc(d.error)}</div>`;
   const [label, cls] = VERDICTS[verdictKey(d.verdict)] || VERDICTS.incerto;

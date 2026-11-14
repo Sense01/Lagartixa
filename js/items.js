@@ -99,7 +99,7 @@ function itemCard(it, idx) {
         <button type="button" class="watch-btn ${watched ? 'on' : ''}" aria-pressed="${watched}">${watched ? '★ A seguir' : '☆ Seguir'}</button>
         <button type="button" class="save-card" title="Guardar imagem do produto">📸</button>
         ${it.price != null
-          ? `<button type="button" class="deal-btn">${it.deal && !it.deal.loading ? '🔄 Reavaliar' : '💡 Negócio?'}</button>` : ''}
+          ? `<button type="button" class="deal-btn">${it.deal && !it.deal.loading ? '🔄 Comparar de novo' : '💡 Comparar preços'}</button>` : ''}
       </div>
     </div>`;
   // anti-flicker: as imagens já carregadas do cartão anterior passam para o novo (não voltam a ser pedidas)
@@ -174,7 +174,7 @@ const Loading = {
     this.on = $('revealAtEnd').checked;
     $('loadBar').classList.remove('hidden', 'done');
     $('loadFill').style.width = '0%';
-    $('loadText').textContent = 'A começar…';
+    $('loadText').textContent = 'A preparar a pesquisa…';
     $('loadShow').classList.add('hidden');
     $('items').classList.toggle('waiting', this.on);
   },
@@ -182,7 +182,8 @@ const Loading = {
     // a fila pode acabar antes do máximo de páginas: usa o que estiver mais adiantado
     const pct = Math.min(99, Math.round(100 * Math.max(s.crawled / Math.max(1, maxPages), s.crawled / Math.max(1, s.crawled + s.queued))));
     $('loadFill').style.width = pct + '%';
-    $('loadText').textContent = `${pct}% · ${s.crawled} página(s) · ${s.items} produto(s)` + (this.on && s.items ? ' prontos' : '');
+    // a barra já diz quanto falta: o texto só diz o que interessa (produtos encontrados)
+    $('loadText').textContent = s.items ? `A procurar nas lojas… ${s.items} produto${s.items > 1 ? 's' : ''} encontrado${s.items > 1 ? 's' : ''}` : 'A procurar nas lojas…';
     $('loadShow').classList.toggle('hidden', !this.on || !s.items);
   },
   reveal() {
@@ -194,7 +195,7 @@ const Loading = {
   },
   finish(state) {
     $('loadFill').style.width = '100%';
-    $('loadText').textContent = state === 'concluído' ? 'Concluído' : state === 'parado' ? 'Parado' : 'Terminado com erros';
+    $('loadText').textContent = state === 'concluído' ? 'Pronto ✓' : state === 'parado' ? 'Pesquisa parada' : 'Terminou, com algumas lojas a falhar';
     $('loadBar').classList.add('done');
     this.reveal();
     setTimeout(() => $('loadBar').classList.add('hidden'), 1800);

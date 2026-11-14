@@ -1053,3 +1053,172 @@ body.sheet-open { overflow: hidden; }
 @keyframes cd-down { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .cooldown small { line-height: 1.4; }
 @media (prefers-reduced-motion: reduce) { .cd-track i { animation: cd-down linear forwards !important; } }
+
+/* =========================================================
+   Soft UI: paleta calma, contraste suave, cantos redondos, sombras leves.
+   (fica no fim do ficheiro: redefine as variáveis e os componentes acima)
+   ========================================================= */
+:root, html[data-theme="dark"] {
+  --bg: #15171c;
+  --text: #e7e9ee;
+  --muted: #9aa1ae;
+  --faint: #6c7381;
+  --glass-a: #1d2027;
+  --glass-b: #1b1e24;
+  --glass-border: #2a2e37;
+  --glass-hi: rgba(255, 255, 255, 0.03);
+  --surface: #252932;
+  --surface-hover: #2c313b;
+  --field: #191c22;
+  --field-hover: #1c2027;
+  --field-border: #2e333d;
+  --divider: #262a32;
+  --th-bg: #1d2027;
+  --toggle-off: #363b46;
+  --shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.45);
+  --option-bg: #1d2027;
+  --accent: #7fa7d6;          /* azul suave */
+  --accent-soft: #24303f;
+  --accent-2: #5b6b80;
+  --on-accent: #10161f;
+  --ok: #6cc4a1;
+  --warn: #e2b85c;
+  --err: #e08a8a;
+  --sheet-bg: #1d2027; --sheet-solid: #1d2027;
+}
+html[data-theme="light"] {
+  --bg: #f4f5f7;
+  --text: #1f2430;
+  --muted: #5f6675;
+  --faint: #9aa0ab;
+  --glass-a: #ffffff;
+  --glass-b: #ffffff;
+  --glass-border: #e6e8ec;
+  --glass-hi: rgba(255, 255, 255, 0.9);
+  --surface: #f0f2f5;
+  --surface-hover: #e8ebf0;
+  --field: #f8f9fb;
+  --field-hover: #ffffff;
+  --field-border: #e1e4ea;
+  --divider: #eceef2;
+  --th-bg: #f6f7f9;
+  --toggle-off: #d6dae1;
+  --shadow: 0 6px 20px -10px rgba(31, 36, 48, 0.12);
+  --option-bg: #ffffff;
+  --accent: #4f7cac;
+  --accent-soft: #e6eef7;
+  --accent-2: #8aa4c2;
+  --on-accent: #ffffff;
+  --ok: #3f9c7a;
+  --warn: #b98a24;
+  --err: #c65a5a;
+  --sheet-bg: #ffffff; --sheet-solid: #ffffff;
+}
+:root { --radius: 20px; --blur: none; }
+
+/* fundo calmo: o fundo animado fica quase invisível */
+#bg { opacity: 0.18; }
+html[data-theme="light"] #bg { opacity: 0.12; }
+.grain { display: none; }
+
+/* cartões: superfícies lisas, uma sombra leve, sem brilhos */
+.panel, .stats div, .bottom-nav, .sheet, .load-bar, .toast, .viewer-box {
+  background: var(--glass-a) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  box-shadow: var(--shadow) !important;
+  border-color: var(--glass-border) !important;
+}
+.panel { padding: 1.4rem; }
+h2 { letter-spacing: 0.04em; }
+
+/* botões: suaves por omissão, um só botão forte (a ação principal) */
+button {
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: none;
+  font-weight: 600;
+  transition: background 0.25s var(--ease), color 0.25s var(--ease), box-shadow 0.25s var(--ease), opacity 0.25s;
+}
+button::after { display: none; }                         /* sem o brilho a passar */
+button:hover:not(:disabled) { transform: none; background: var(--surface-hover); }
+button:active:not(:disabled) { transform: scale(0.98); }
+button:disabled { opacity: 0.45; }
+button:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+button.ghost { background: transparent; border-color: var(--field-border); }
+button.ghost:hover:not(:disabled) { background: var(--surface); }
+#startBtn, button.primary, .scan-actions #scanCam {
+  background: var(--accent); color: var(--on-accent); border-color: transparent;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+#startBtn:hover:not(:disabled), button.primary:hover:not(:disabled), .scan-actions #scanCam:hover { background: var(--accent); filter: brightness(1.05); }
+#startBtn { padding: 0.9rem 1.6rem; font-size: 1rem; }
+#stopBtn:disabled { display: none; }                     /* "Parar" só aparece durante a pesquisa */
+
+/* campos: mais calmos, foco suave */
+input, select, textarea { border-radius: 14px; }
+input:focus, select:focus, textarea:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+input[type="checkbox"]:checked::after { background: #fff; }
+
+/* pesquisa em 3 passos */
+.search-card form { gap: 1rem 1rem; }
+.step { display: flex; gap: 0.8rem; align-items: flex-start; margin-top: 0.4rem; }
+.step:first-of-type { margin-top: 0; }
+.step-n { flex: 0 0 auto; width: 1.9rem; height: 1.9rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+.step h3 { margin: 0.15rem 0 0; font-size: 1.05rem; font-weight: 650; color: var(--text); letter-spacing: -0.01em; }
+.step h3 small { font-size: 0.75rem; font-weight: 500; color: var(--faint); margin-left: 0.3rem; }
+.step p { margin: 0.2rem 0 0; font-size: 0.85rem; color: var(--muted); }
+.big-field textarea { font-size: 1.05rem; padding: 0.85rem 1rem; min-height: 3.4rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cta-row { align-items: center; margin-top: 0.4rem; }
+.cta-row #startBtn { flex: 1 1 14rem; }
+
+/* opções avançadas: escondidas até serem precisas */
+.advanced { border-top: 1px solid var(--divider); padding-top: 0.6rem; }
+.advanced > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 0.88rem; font-weight: 600; padding: 0.4rem 0; }
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::before { content: "⚙️  "; }
+.advanced > summary::after { content: " ▾"; color: var(--faint); }
+.advanced[open] > summary::after { content: " ▴"; }
+.adv-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem 1rem; padding-top: 0.6rem; }
+.adv-grid > label > input, .adv-grid > label > select { margin-top: auto; }
+@media (max-width: 760px) { .adv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* categorias: fichas suaves */
+.col-chip { background: var(--surface); border: 1px solid transparent; }
+#colChips .col-chip.on { background: var(--accent-soft) !important; color: var(--accent) !important; border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+#colChips .col-chip.on span, #colChips .col-chip.on small { color: var(--accent) !important; }
+
+/* números: só os que interessam */
+.stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stats .tech { display: none; }
+.stats .hl { background: var(--accent-soft) !important; }
+.stats .hl span { color: var(--accent); }
+
+/* barra inferior */
+.bottom-nav button[aria-expanded="true"], .bottom-nav button[aria-expanded="true"]:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.nav-badge { background: var(--accent); color: var(--on-accent); }
+
+/* estados de espera: só uma barra fluida, sem números a repetir o mesmo */
+.load-fill { background: var(--accent); }
+.load-bar.done .load-fill { background: var(--ok); }
+.cooldown { border-color: transparent; background: var(--accent-soft); gap: 0.5rem; }
+.cooldown b { color: var(--text); font-size: 0.88rem; font-weight: 600; }
+.cooldown small { color: var(--muted); }
+.cd-track { height: 5px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.cd-track i { background: var(--accent); }
+.deal-box.loading { position: relative; animation: none; padding-bottom: 1.1rem; }
+.deal-box.loading::after {                               /* barra indeterminada, suave */
+  content: ""; position: absolute; left: 0.8rem; right: 0.8rem; bottom: 0.55rem; height: 4px; border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat,
+              color-mix(in srgb, var(--accent) 15%, transparent);
+  animation: indet 1.4s ease-in-out infinite;
+}
+@keyframes indet { from { background-position: -40% 0, 0 0; } to { background-position: 140% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .deal-box.loading::after { animation: none !important; } }
+
+/* cartões de produto: o veredicto em tons suaves */
+.deal-box { border-radius: 14px; }
+.badge { background: var(--accent-soft); color: var(--accent); box-shadow: none; }

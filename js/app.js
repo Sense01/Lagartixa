@@ -204,7 +204,8 @@ function updateStats(s, state) {
   $('statMatches').textContent = s.matches;
   $('statErrors').textContent = s.errors;
   $('statLinks').textContent = s.links;
-  if (state) $('statStatus').textContent = state;
+  // estados em linguagem simples (os valores internos não mudam)
+  if (state) $('statStatus').textContent = { 'a correr': 'a procurar…', 'a traduzir': 'a preparar…', concluído: 'pronto ✓', parado: 'parado', erro: 'com erros' }[state] || state;
   // barra inferior: quantas páginas há no histórico
   $('navHistory').textContent = s.crawled > 999 ? '999+' : s.crawled;
   $('navHistory').classList.toggle('hidden', !s.crawled);
@@ -280,6 +281,7 @@ const RunFlag = {
   interrupted() { try { return !!sessionStorage.getItem(this.key); } catch { return false; } },
 };
 function setRunning(on) {
+  if (on) $('statsPanel').classList.remove('hidden');      // os números só aparecem depois da primeira pesquisa
   $('startBtn').disabled = on;
   $('stopBtn').disabled = !on;
   $('exportJson').disabled = on || !results.length;

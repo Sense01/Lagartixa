@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=33">
+  <link rel="stylesheet" href="style.css?v=34">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -33,7 +33,7 @@
   <header>
     <div>
       <h1><img src="icons/logo.svg" alt="" class="logo"> <span class="title">Web Crawler</span></h1>
-      <p class="sub">Explora sites e encontra palavras-chave — direto no browser.</p>
+      <p class="sub">Encontra o melhor preço em dezenas de lojas, numa só pesquisa.</p>
     </div>
     <button type="button" id="themeToggle" class="theme-toggle" aria-label="Alternar modo claro/escuro" aria-pressed="false">
       <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -43,8 +43,8 @@
 
   <main>
     <details class="panel" id="sitesPanel">
-      <summary><h2>📚 Lojas <span class="count" id="sdCount">—</span>
-        <small class="h-sub">diretório de lojas testadas — escolhe uma e carrega em Usar, ou testa uma loja nova</small></h2></summary>
+      <summary><h2>🏬 Lojas disponíveis <span class="count" id="sdCount">—</span>
+        <small class="h-sub">as lojas que a app consegue ler — ou testa uma loja nova</small></h2></summary>
       <div class="sd-add">
         <input type="url" id="sdAddUrl" placeholder="Testar outra loja: https://loja.pt/categoria" inputmode="url" autocomplete="off">
         <button type="button" id="sdAddBtn">🔍 Testar e adicionar</button>
@@ -66,15 +66,24 @@
       <p id="sdFoot" class="sd-foot"></p>
     </details>
 
-    <section class="panel">
+    <section class="panel search-card">
       <form id="config">
         <div id="searchesBar" class="searches-bar full hidden">
-          <span class="sb-label">Pesquisas guardadas</span>
+          <span class="sb-label">As tuas pesquisas</span>
           <div id="savedSearches" class="saved-searches"></div>
         </div>
 
+
+        <div class="step full"><span class="step-n">1</span><div><h3>O que procuras?</h3><p>Escreve o produto. Podes juntar vários, separados por vírgula.</p></div></div>
+        <label class="full big-field">
+          <span class="sr-only">Produto a procurar</span>
+          <textarea id="keywords" rows="2" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ex.: monitor 27, LEGO 10311, adaptador USB-C"></textarea>
+          <span id="kwTr" class="kw-tr hidden" aria-live="polite"></span>
+        </label>
+
+        <div class="step full"><span class="step-n">2</span><div><h3>Onde procurar?</h3><p>Escolhe uma categoria e as lojas certas ficam escolhidas. Ou escreve as tuas.</p></div></div>
         <div class="collections full">
-          <div class="col-head"><span class="sb-label">Pesquisar por categoria</span>
+          <div class="col-head"><span class="sb-label">Categorias</span>
             <select id="colCountry" aria-label="País das lojas">
               <option value="">🇵🇹 🇪🇸 🇫🇷 🇩🇪 Todos os países</option><option value="PT,ES">🇵🇹 🇪🇸 Portugal e Espanha</option>
               <option value="PT">🇵🇹 Só Portugal</option><option value="ES">🇪🇸 Só Espanha</option><option value="FR">🇫🇷 Só França</option><option value="DE">🇩🇪 Só Alemanha</option>
@@ -83,36 +92,42 @@
           <small id="colInfo" class="col-info"></small>
         </div>
 
-        <label class="half">
-          Sites a analisar <small>(um por linha)</small>
-          <textarea id="sites" rows="4" placeholder="https://example.com&#10;outrosite.pt" required></textarea>
-        </label>
-        <label class="half">
-          Palavras-chave <small>(uma por linha ou separadas por vírgula)</small>
-          <textarea id="keywords" rows="4" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="adaptador&#10;cabo hdmi&#10;monitor"></textarea>
-          <span id="kwTr" class="kw-tr hidden" aria-live="polite"></span>
+        <label class="full">
+          Lojas escolhidas <small>(uma por linha)</small>
+          <textarea id="sites" rows="3" placeholder="worten.pt&#10;fnac.pt" required></textarea>
         </label>
 
+        <div class="step full"><span class="step-n">3</span><div><h3>Quanto queres gastar? <small>opcional</small></h3></div></div>
+        <label>
+          Desde (€)
+          <input type="number" id="minPrice" min="0" step="0.01" inputmode="decimal" placeholder="—">
+        </label>
+        <label>
+          Até (€)
+          <input type="number" id="maxPrice" min="0" step="0.01" inputmode="decimal" placeholder="—">
+        </label>
+        <label class="half">
+          Desconto mínimo (%)
+          <input type="number" id="minDiscount" min="0" max="99" step="1" inputmode="numeric" placeholder="—">
+        </label>
+
+        <div class="buttons full cta-row">
+          <button type="submit" id="startBtn">🔍 Procurar preços</button>
+          <button type="button" id="stopBtn" disabled>Parar</button>
+          <button type="button" id="saveSearch" class="ghost">Guardar pesquisa</button>
+        </div>
+
+        <details class="advanced full">
+          <summary>Opções avançadas</summary>
+          <div class="adv-grid">
         <div class="checks full">
           <label><input type="checkbox" id="wholeWord" checked> Palavra inteira</label>
           <label><input type="checkbox" id="caseSensitive"> Distinguir maiúsculas/minúsculas</label>
           <label title="Procura também as palavras-chave em português, francês, espanhol e alemão, para apanhar os mesmos produtos nas lojas dos outros países. As palavras que o dicionário da app não conhece são traduzidas uma vez pela IA do teu Worker."><input type="checkbox" id="translate" checked> 🌍 Traduzir palavras-chave (PT · FR · ES · DE)</label>
         </div>
 
-        <label>
-          Preço mínimo (€)
-          <input type="number" id="minPrice" min="0" step="0.01" inputmode="decimal" placeholder="—">
-        </label>
-        <label>
-          Preço máximo (€)
-          <input type="number" id="maxPrice" min="0" step="0.01" inputmode="decimal" placeholder="—">
-        </label>
-        <label>
-          Desconto mínimo (%)
-          <input type="number" id="minDiscount" min="0" max="99" step="1" inputmode="numeric" placeholder="—">
-        </label>
         <label class="half">
-          Avaliar se é bom negócio <small>(IA pesquisa preços na web; precisa do teu Worker com chave da API)</small>
+          Comparar preços com IA <small>(precisa do teu Worker)</small>
           <select id="dealMode">
             <option value="manual" selected>Só ao tocar no botão 💡 de cada produto</option>
             <option value="auto">Automático: os 12 melhores candidatos de cada pesquisa (gasta a quota da IA)</option>
@@ -120,7 +135,7 @@
           </select>
         </label>
         <label class="half">
-          Screenshot de cada produto
+          Captura da página de cada produto
           <select id="shotService">
             <option value="mshots">WordPress mShots (grátis)</option>
             <option value="thumio">thum.io (grátis)</option>
@@ -129,11 +144,11 @@
         </label>
 
         <label>
-          Máx. páginas
+          Páginas a visitar (máx.)
           <input type="number" id="maxPages" value="50" min="1" max="5000">
         </label>
         <label>
-          Profundidade máx.
+          Profundidade dos links
           <input type="number" id="maxDepth" value="2" min="0" max="20">
         </label>
         <label>
@@ -146,7 +161,7 @@
         </label>
 
         <label class="full">
-          Proxy CORS
+          Ligação às lojas (proxy)
           <select id="proxy">
             <option value="auto">Automático — tenta vários até um funcionar</option>
             <option value="allorigins">allorigins.win</option>
@@ -157,7 +172,7 @@
           </select>
         </label>
         <label class="full" id="customProxyWrap">
-          O meu proxy <small>(opcional; use <code>{url}</code> como marcador — no modo automático é tentado primeiro)</small>
+          O meu Worker <small>(endereço com <code>{url}</code>)</small>
           <input type="text" id="customProxy" value="https://crawler-proxy.xxlarpkingxx.workers.dev/?url={url}" placeholder="https://meu-proxy.workers.dev/?url={url}">
         </label>
 
@@ -165,20 +180,19 @@
           <label><input type="checkbox" id="sameDomain" checked> Ficar dentro dos sites indicados</label>
           <label><input type="checkbox" id="sameSection" checked> Ficar dentro da secção indicada (ex.: /componentes/…)</label>
           <label><input type="checkbox" id="respectRobots" checked> Respeitar robots.txt</label>
-          <label><input type="checkbox" id="stripQuery"> Ignorar query strings (?a=b)</label>
+          <label><input type="checkbox" id="stripQuery"> Ignorar parâmetros nos endereços (?a=b)</label>
           <label title="Para lojas cujas listas só mostram os primeiros produtos (ex.: Rádio Popular): lê o sitemap da loja e visita as páginas de produto com as palavras-chave"><input type="checkbox" id="useSitemap"> Procurar também no sitemap da loja (mais completo, mais lento)</label>
           <label><input type="checkbox" id="notify" checked> Notificar quando terminar</label>
           <label title="Durante a pesquisa mostra só a barra de progresso; os produtos aparecem todos de uma vez no fim (podes carregar em Mostrar já)"><input type="checkbox" id="revealAtEnd" checked> Mostrar os produtos só no fim</label>
         </div>
 
-        <div class="buttons full">
-          <button type="submit" id="startBtn">▶ Iniciar</button>
-          <button type="button" id="stopBtn" disabled>■ Parar</button>
-          <button type="button" id="saveSearch">💾 Guardar pesquisa</button>
-          <button type="button" id="exportJson" disabled>⬇ JSON</button>
-          <button type="button" id="exportCsv" disabled>⬇ CSV páginas</button>
-          <button type="button" id="exportItems" disabled>⬇ CSV produtos</button>
-        </div>
+            <div class="buttons full">
+              <button type="button" id="exportJson" disabled>⬇ JSON</button>
+              <button type="button" id="exportCsv" disabled>⬇ CSV páginas</button>
+              <button type="button" id="exportItems" disabled>⬇ CSV produtos</button>
+            </div>
+          </div>
+        </details>
       </form>
     </section>
 
@@ -187,14 +201,14 @@
       <div class="load-row"><span id="loadText"></span><button type="button" id="loadShow" class="small hidden">Mostrar já</button></div>
     </div>
 
-    <section class="stats">
-      <div><span id="statCrawled">0</span><small>visitadas</small></div>
-      <div><span id="statQueued">0</span><small>em fila</small></div>
+    <section class="stats hidden" id="statsPanel">
       <div class="hl"><span id="statItems">0</span><small>produtos encontrados</small></div>
-      <div><span id="statMatches">0</span><small>com palavras-chave</small></div>
-      <div><span id="statErrors">0</span><small>erros</small></div>
-      <div><span id="statLinks">0</span><small>links únicos</small></div>
-      <div><span id="statStatus">parado</span><small>estado</small></div>
+      <div><span id="statCrawled">0</span><small>páginas vistas</small></div>
+      <div><span id="statStatus">pronto</span><small>estado</small></div>
+      <div class="tech"><span id="statQueued">0</span><small>em fila</small></div>
+      <div class="tech"><span id="statMatches">0</span><small>com palavras-chave</small></div>
+      <div class="tech"><span id="statErrors">0</span><small>erros</small></div>
+      <div class="tech"><span id="statLinks">0</span><small>links únicos</small></div>
     </section>
 
     <section class="panel hidden" id="watchPanel">
@@ -368,20 +382,20 @@
     </div>
   </div>
 
-  <script src="bg.js?v=33"></script>
-  <script src="js/util.js?v=33"></script>
-  <script src="js/store.js?v=33"></script>
-  <script src="js/extract-lite.js?v=33"></script>
-  <script src="js/translate.js?v=33"></script>
-  <script src="js/crawler.js?v=33"></script>
-  <script src="js/value.js?v=33"></script>
-  <script src="js/deals.js?v=33"></script>
-  <script src="js/resale.js?v=33"></script>
-  <script src="js/items.js?v=33"></script>
-  <script src="js/watch.js?v=33"></script>
-  <script src="js/monitor.js?v=33"></script>
-  <script src="js/sites.js?v=33"></script>
-  <script src="js/barcode.js?v=33"></script>
-  <script src="js/app.js?v=33"></script>
+  <script src="bg.js?v=34"></script>
+  <script src="js/util.js?v=34"></script>
+  <script src="js/store.js?v=34"></script>
+  <script src="js/extract-lite.js?v=34"></script>
+  <script src="js/translate.js?v=34"></script>
+  <script src="js/crawler.js?v=34"></script>
+  <script src="js/value.js?v=34"></script>
+  <script src="js/deals.js?v=34"></script>
+  <script src="js/resale.js?v=34"></script>
+  <script src="js/items.js?v=34"></script>
+  <script src="js/watch.js?v=34"></script>
+  <script src="js/monitor.js?v=34"></script>
+  <script src="js/sites.js?v=34"></script>
+  <script src="js/barcode.js?v=34"></script>
+  <script src="js/app.js?v=34"></script>
 </body>
 </html>
