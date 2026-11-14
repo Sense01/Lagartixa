@@ -1025,7 +1025,7 @@ body.sheet-open { overflow: hidden; }
 
 /* leitor de códigos de barras */
 .scan-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
-.scan-actions button { flex: 1 1 10rem; }
+.scan-actions button { flex: 1 1 9rem; }
 .scan-video { position: relative; margin-bottom: 0.9rem; border-radius: 18px; overflow: hidden; background: #000; }
 .scan-video video { display: block; width: 100%; max-height: 52vh; object-fit: cover; }
 .scan-aim { position: absolute; left: 12%; right: 12%; top: 50%; height: 30%; transform: translateY(-50%); border: 2px solid rgba(255,255,255,0.85); border-radius: 14px; box-shadow: 0 0 0 999px rgba(0,0,0,0.25); pointer-events: none; }

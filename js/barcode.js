@@ -152,7 +152,7 @@ const Barcode = (() => {
     ? (() => { try { return new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] }); } catch { return null; } })()
     : null;
 
-  async function detect(src, w, h) {
+  async function detect(src, w, h, maxW = 1280) {
     if (native) {
       try {
         const found = await native.detect(src);
@@ -160,7 +160,7 @@ const Barcode = (() => {
         if (code) return code;
       } catch { /* cai para o descodificador próprio */ }
     }
-    return decodeImageData(frameData(src, w, h));
+    return decodeImageData(frameData(src, w, h, maxW));
   }
 
   async function decodeFile(file) {
@@ -169,7 +169,9 @@ const Barcode = (() => {
       const img = new Image();
       img.src = url;
       await img.decode();
-      return await detect(img, img.naturalWidth, img.naturalHeight);
+      // fotos da galeria são grandes e o código pode ocupar pouco espaço: tenta também com mais resolução
+      return (await detect(img, img.naturalWidth, img.naturalHeight)) ||
+        (img.naturalWidth > 1400 ? decodeImageData(frameData(img, img.naturalWidth, img.naturalHeight, 2600)) : null);
     } finally { URL.revokeObjectURL(url); }
   }
 
@@ -273,7 +275,8 @@ const Barcode = (() => {
     });
     $('scanStop').addEventListener('click', () => { stopCamera(); $('scanVideoWrap').classList.add('hidden'); status(''); });
     $('scanPhoto').addEventListener('click', () => $('scanFile').click());
-    $('scanFile').addEventListener('change', async (e) => {
+    $('scanPick').addEventListener('click', () => $('scanGallery').click());
+    const onFile = async (e) => {
       const f = e.target.files?.[0];
       e.target.value = '';
       if (!f) return;
@@ -281,7 +284,9 @@ const Barcode = (() => {
       const code = await decodeFile(f).catch(() => null);
       if (code) lookup(code);
       else status('⚠️ Não encontrei um código de barras na foto. Tira outra mais perto, na horizontal e sem reflexos, ou escreve o número.');
-    });
+    };
+    $('scanFile').addEventListener('change', onFile);
+    $('scanGallery').addEventListener('change', onFile);
     $('scanForm').addEventListener('submit', (e) => { e.preventDefault(); lookup($('scanEan').value); });
     // a câmara desliga-se quando a folha fecha
     document.addEventListener('sheet', (e) => { if (e.detail !== 'scan') { stopCamera(); $('scanVideoWrap').classList.add('hidden'); } });

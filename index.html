@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -318,8 +318,10 @@
       <div class="sheet-body">
         <div class="scan-actions">
           <button type="button" id="scanCam" class="primary">📷 Abrir câmara</button>
-          <button type="button" id="scanPhoto">🖼️ Tirar foto</button>
+          <button type="button" id="scanPhoto">📸 Tirar foto</button>
+          <button type="button" id="scanPick">🖼️ Escolher da galeria</button>
           <input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+          <input type="file" id="scanGallery" accept="image/*" hidden>
         </div>
         <div id="scanVideoWrap" class="scan-video hidden">
           <video id="scanVideo" playsinline muted></video>
@@ -366,20 +368,20 @@
     </div>
   </div>
 
-  <script src="bg.js?v=27"></script>
-  <script src="js/util.js?v=27"></script>
-  <script src="js/store.js?v=27"></script>
-  <script src="js/extract-lite.js?v=27"></script>
-  <script src="js/translate.js?v=27"></script>
-  <script src="js/crawler.js?v=27"></script>
-  <script src="js/value.js?v=27"></script>
-  <script src="js/deals.js?v=27"></script>
-  <script src="js/resale.js?v=27"></script>
-  <script src="js/items.js?v=27"></script>
-  <script src="js/watch.js?v=27"></script>
-  <script src="js/monitor.js?v=27"></script>
-  <script src="js/sites.js?v=27"></script>
-  <script src="js/barcode.js?v=27"></script>
-  <script src="js/app.js?v=27"></script>
+  <script src="bg.js?v=28"></script>
+  <script src="js/util.js?v=28"></script>
+  <script src="js/store.js?v=28"></script>
+  <script src="js/extract-lite.js?v=28"></script>
+  <script src="js/translate.js?v=28"></script>
+  <script src="js/crawler.js?v=28"></script>
+  <script src="js/value.js?v=28"></script>
+  <script src="js/deals.js?v=28"></script>
+  <script src="js/resale.js?v=28"></script>
+  <script src="js/items.js?v=28"></script>
+  <script src="js/watch.js?v=28"></script>
+  <script src="js/monitor.js?v=28"></script>
+  <script src="js/sites.js?v=28"></script>
+  <script src="js/barcode.js?v=28"></script>
+  <script src="js/app.js?v=28"></script>
 </body>
 </html>
