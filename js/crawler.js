@@ -655,9 +655,9 @@ class Crawler {
     if (this.startHosts && this.startHosts.size > 1) {
       const cap = Math.ceil(this.opts.maxPages / this.startHosts.size);
       if ((this.hostCount.get(host) || 0) >= cap) return false;
-      // enquanto o sitemap ainda está a ser lido, os links normais só usam metade da parte da loja:
+      // enquanto o sitemap ainda está a ser lido, os links normais só usam um terço da parte da loja:
       // o resto fica guardado para as páginas de produto do sitemap (as que têm mesmo o que procuras)
-      if (this.seeding && !extra?.product && depth > 0 && (this.hostCount.get(host) || 0) >= Math.ceil(cap / 2)) return false;
+      if (this.seeding && !extra?.product && depth > 0 && (this.hostCount.get(host) || 0) >= Math.ceil(cap / 3)) return false;
     }
     if (!extra?.product) {
       if (depth > this.opts.maxDepth) return false;
