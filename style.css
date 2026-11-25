@@ -899,7 +899,7 @@ button.link { all: unset; cursor: pointer; color: var(--text); text-decoration: 
   z-index: 16;
   display: flex;
   gap: 0.25rem;
-  width: min(calc(100% - 1.2rem), 560px);
+  width: min(calc(100% - 1.2rem), 320px);
   height: var(--nav-h);
   padding: 0.35rem;
   border-radius: 999px;

@@ -15,6 +15,7 @@ function saveSettings() {
   FIELDS.forEach((f) => (s[f] = $(f).value));
   CHECKS.forEach((c) => (s[c] = $(c).checked));
   s.dealManual3 = true;
+  s.fast1 = true;
   try { localStorage.setItem('crawler-settings', JSON.stringify(s)); } catch {}
 }
 
@@ -23,6 +24,7 @@ function loadSettings() {
     const s = JSON.parse(localStorage.getItem('crawler-settings') || '{}');
     if (s.proxy && s.proxy.includes('://')) s.proxy = 'auto';     // versões antigas
     if (!s.dealManual3 && s.dealMode === 'auto') s.dealMode = 'manual'; // v16: volta ao modo manual (poupa a quota da Groq)
+    if (!s.fast1 && (s.concurrency === '3' || !s.concurrency)) s.concurrency = '6';   // v36: lojas em paralelo
     FIELDS.forEach((f) => {
       const el = $(f);
       if (s[f] == null) return;
@@ -207,8 +209,7 @@ function updateStats(s, state) {
   // estados em linguagem simples (os valores internos não mudam)
   if (state) $('statStatus').textContent = { 'a correr': 'a procurar…', 'a traduzir': 'a preparar…', concluído: 'pronto ✓', parado: 'parado', erro: 'com erros' }[state] || state;
   // barra inferior: quantas páginas há no histórico
-  $('navHistory').textContent = s.crawled > 999 ? '999+' : s.crawled;
-  $('navHistory').classList.toggle('hidden', !s.crawled);
+
   $('historyEmpty').classList.toggle('hidden', s.crawled > 0);
   renderKeywordSummary(s);
 }

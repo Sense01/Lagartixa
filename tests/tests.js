@@ -514,6 +514,27 @@
     document.body.appendChild(f);
   });
 
+  group('Pesquisa rápida: lojas em paralelo');
+  {
+    // 4 lojas, cada página demora 100 ms: com as lojas em paralelo tem de ser muito mais rápido do que uma de cada vez
+    const hosts = ['a', 'b', 'c', 'd'];
+    const c = new Crawler({ startUrls: hosts.map((h) => `https://${h}.pt/cat/p0`), maxPages: 40, maxDepth: 4, delay: 100, sameSection: false, respectRobots: false, proxies: [{ name: 'direto', tpl: '{url}' }] });
+    let inFlight = {}, maxSame = 0;
+    c.fetchOnce = async (url) => {
+      const h = new URL(url).hostname;
+      inFlight[h] = (inFlight[h] || 0) + 1; maxSame = Math.max(maxSame, inFlight[h]);
+      await new Promise((r) => setTimeout(r, 100));
+      inFlight[h]--;
+      const n = +url.match(/p(\d+)$/)[1];
+      return { status: 200, ok: true, type: 'text/html', text: `<html><title>${n}</title><body>${[1, 2, 3].map((k) => `<a href="/cat/p${n * 3 + k}">x</a>`).join('')}</body></html>`, ms: 100 };
+    };
+    const t = performance.now();
+    await c.start();
+    const ms = performance.now() - t;
+    ok(c.results.length === 40 && ms < 2500, `40 páginas de 4 lojas em ${Math.round(ms)} ms (uma de cada vez seriam ~16 s)`, { pages: c.results.length, ms });
+    ok(maxSame <= 2, 'nunca mais de 2 pedidos ao mesmo tempo na mesma loja', maxSame);
+  }
+
   const sum = document.getElementById('summary');
   sum.textContent = `${pass} passaram, ${fail} falharam`;
   sum.className = fail ? 'fail' : 'pass';

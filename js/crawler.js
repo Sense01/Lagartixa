@@ -24,8 +24,9 @@ class Crawler {
       minDiscount: null,
       maxPages: 50,
       maxDepth: 2,
-      concurrency: 3,
-      delay: 300,
+      concurrency: 6,        // pedidos ao mesmo tempo, no total (lojas diferentes em paralelo)
+      perHost: 2,            // no máximo 2 pedidos ao mesmo tempo na mesma loja
+      delay: 300,            // pausa entre pedidos à MESMA loja (lojas diferentes não esperam umas pelas outras)
       proxies: PUBLIC_PROXIES,   // [{name, tpl}] — tentados por ordem
       sameDomain: true,
       sameSection: true,     // só segue links dentro do caminho indicado (ex.: /componentes/…)
@@ -675,7 +676,12 @@ class Crawler {
       this.ui('onLog', 'Sitemap: indica palavras-chave para escolher os produtos (o sitemap tem milhares de páginas)');
       return;
     }
-    for (const origin of [...new Set(starts.map((u) => new URL(u).origin))]) {
+    // todas as lojas ao mesmo tempo (antes era uma de cada vez)
+    await Promise.all([...new Set(starts.map((u) => new URL(u).origin))].map((origin) => this.seedOrigin(origin)));
+  }
+
+  async seedOrigin(origin) {
+    {
       const rules = this.opts.respectRobots ? await this.loadRobots(origin) : [];
       let pending = LiteX.rankSitemaps(rules.sitemaps?.length ? rules.sitemaps : [origin + '/sitemap.xml']);
       const done = new Set();
@@ -750,9 +756,10 @@ class Crawler {
         this.queue.push({ url: s, depth: 0, from: null });
       }
     }
-    if (this.opts.useSitemap) await this.seedFromSitemaps(starts);
-
-    await Promise.all(Array.from({ length: this.opts.concurrency }, () => this.worker()));
+    // as páginas começam logo a ser visitadas enquanto os sitemaps são lidos (em paralelo)
+    this.seeding = this.opts.useSitemap ? 1 : 0;
+    const seed = this.opts.useSitemap ? this.seedFromSitemaps(starts).finally(() => { this.seeding = 0; }) : null;
+    await Promise.all([seed, ...Array.from({ length: this.opts.concurrency }, () => this.worker())]);
 
     const stopped = !this.running;
     this.running = false;
@@ -761,36 +768,45 @@ class Crawler {
   }
 
   /** proximo pedido: intercala as lojas (a que tem menos paginas ja visitadas primeiro) */
+  /** próximo endereço a visitar: a loja menos visitada que tenha lugar livre e já tenha cumprido a pausa */
   nextJob() {
-    if (this.queue.length < 2 || !this.startHosts || this.startHosts.size < 2) return this.queue.shift();
-    this.visitedBy ||= new Map();
-    let bi = 0, best = Infinity;
+    const now = Date.now(), perHost = Math.max(1, this.opts.perHost || 2);
+    this.visitedBy ||= new Map(); this.inFlight ||= new Map(); this.hostReady ||= new Map();
+    const multi = this.startHosts && this.startHosts.size > 1;
+    let bi = -1, best = Infinity;
     for (let i = 0; i < this.queue.length; i++) {
-      const n = this.visitedBy.get(this.hostKey(this.queue[i].url)) || 0;
-      if (n < best) { best = n; bi = i; if (n === 0) break; }
+      const h = this.hostKey(this.queue[i].url);
+      if ((this.inFlight.get(h) || 0) >= perHost || (this.hostReady.get(h) || 0) > now) continue;
+      const n = this.visitedBy.get(h) || 0;
+      if (n < best) { best = n; bi = i; if (n === 0 || !multi) break; }
     }
+    if (bi < 0) return null;
     const [job] = this.queue.splice(bi, 1);
     const h = this.hostKey(job.url);
     this.visitedBy.set(h, (this.visitedBy.get(h) || 0) + 1);
+    this.inFlight.set(h, (this.inFlight.get(h) || 0) + 1);
+    this.hostReady.set(h, now + (this.opts.delay || 0));
     return job;
   }
+
 
   async worker() {
     while (this.running) {
       const job = this.nextJob();
       if (!job) {
-        if (this.active === 0) return;
-        await this.sleep(100);
+        if (this.active === 0 && !this.seeding && !this.queue.length) return;
+        await this.sleep(50);                 // lojas ocupadas ou em pausa: espera um pouco
         continue;
       }
       this.active++;
+      const h = this.hostKey(job.url);
       try {
         await this.visit(job);
       } finally {
         this.active--;
+        this.inFlight.set(h, Math.max(0, (this.inFlight.get(h) || 1) - 1));
         this.ui('onProgress', this.stats());
       }
-      if (this.opts.delay) await this.sleep(this.opts.delay);
     }
   }
 
