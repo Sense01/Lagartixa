@@ -24,8 +24,8 @@ class Crawler {
       minDiscount: null,
       maxPages: 50,
       maxDepth: 2,
-      concurrency: 6,        // pedidos ao mesmo tempo, no total (lojas diferentes em paralelo)
-      perHost: 2,            // no máximo 2 pedidos ao mesmo tempo na mesma loja
+      concurrency: 9,        // pedidos ao mesmo tempo, no total (lojas diferentes em paralelo)
+      perHost: 3,            // no máximo 3 pedidos ao mesmo tempo na mesma loja
       delay: 300,            // pausa entre pedidos à MESMA loja (lojas diferentes não esperam umas pelas outras)
       proxies: PUBLIC_PROXIES,   // [{name, tpl}] — tentados por ordem
       sameDomain: true,

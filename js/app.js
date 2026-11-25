@@ -15,7 +15,7 @@ function saveSettings() {
   FIELDS.forEach((f) => (s[f] = $(f).value));
   CHECKS.forEach((c) => (s[c] = $(c).checked));
   s.dealManual3 = true;
-  s.fast1 = true;
+  s.fast2 = true;
   try { localStorage.setItem('crawler-settings', JSON.stringify(s)); } catch {}
 }
 
@@ -24,7 +24,7 @@ function loadSettings() {
     const s = JSON.parse(localStorage.getItem('crawler-settings') || '{}');
     if (s.proxy && s.proxy.includes('://')) s.proxy = 'auto';     // versões antigas
     if (!s.dealManual3 && s.dealMode === 'auto') s.dealMode = 'manual'; // v16: volta ao modo manual (poupa a quota da Groq)
-    if (!s.fast1 && (s.concurrency === '3' || !s.concurrency)) s.concurrency = '6';   // v36: lojas em paralelo
+    if (!s.fast2 && (['3', '6'].includes(s.concurrency) || !s.concurrency)) s.concurrency = '9';   // v36: lojas em paralelo
     FIELDS.forEach((f) => {
       const el = $(f);
       if (s[f] == null) return;

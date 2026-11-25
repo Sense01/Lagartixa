@@ -532,7 +532,7 @@
     await c.start();
     const ms = performance.now() - t;
     ok(c.results.length === 40 && ms < 2500, `40 páginas de 4 lojas em ${Math.round(ms)} ms (uma de cada vez seriam ~16 s)`, { pages: c.results.length, ms });
-    ok(maxSame <= 2, 'nunca mais de 2 pedidos ao mesmo tempo na mesma loja', maxSame);
+    ok(maxSame <= 3, 'nunca mais de 3 pedidos ao mesmo tempo na mesma loja', maxSame);
   }
 
   const sum = document.getElementById('summary');
