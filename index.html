@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Web Crawler</title>
-  <link rel="stylesheet" href="style.css?v=34">
+  <link rel="stylesheet" href="style.css?v=35">
 
   <!-- Ícones e modo app (iPhone: Partilhar → Adicionar ao ecrã principal) -->
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -58,7 +58,7 @@
         </select>
         <select id="sdStatus" aria-label="Estado">
           <option value="usable" selected>✅ Funcionam e parciais</option><option value="ok">✅ Só as que funcionam</option>
-          <option value="partial">⚠️ Parciais</option><option value="resale">📈 Bons para o simulador</option>
+          <option value="partial">⚠️ Parciais</option><option value="resale">📈 Mostram o preço antigo</option>
           <option value="blocked">⛔ Bloqueadas (escondidas)</option><option value="">Todas</option>
         </select>
       </div>
@@ -268,31 +268,28 @@
   <!-- Folhas abertas pela barra inferior (ficam por cima da página) -->
   <div id="sheetBackdrop" class="sheet-backdrop hidden"></div>
 
-  <section class="sheet hidden" id="resalePanel" data-sheet="resale" role="dialog" aria-label="Simulador de revenda">
+  <section class="sheet hidden" id="resalePanel" data-sheet="resale" role="dialog" aria-label="Revenda">
       <header class="sheet-head">
-        <h2>Simulador de revenda <small class="h-sub">comprar barato aqui e revender: dá lucro?</small></h2>
+        <h2>Revenda <small class="h-sub">se comprares aqui e revenderes, quanto sobra?</small></h2>
         <button type="button" class="sheet-close" data-sheet-close aria-label="Fechar">✕</button>
       </header>
       <div class="sheet-body">
-      <p class="mon-desc">Para cada produto encontrado: preço de revenda (o teu valor, a avaliação 💡 da IA, outra loja ou o preço antigo),
-        menos comissões, portes, embalagem, IVA e devoluções. Depois simula vários meses de compras e vendas, com o dinheiro reinvestido.
-        Os valores de partida são suposições: ajusta-os à plataforma onde venderias.</p>
-      <div id="rsParams" class="rs-params"></div>
-      <div class="buttons">
-        <button type="button" id="rsRun" class="primary">▶ Simular</button>
-        <button type="button" id="rsFetch">💡 Obter preços de revenda</button>
-        <button type="button" id="rsReset">Repor valores de partida</button>
-        <span id="rsSummary" class="rs-sum"></span>
-      </div>
-      <div id="rsTip" class="rs-tip hidden"></div>
-      <div id="rsResult"></div>
-      <form id="rsAdd" class="rs-add">
-        <input id="rsAddName" placeholder="Produto (ex.: LEGO 10311)" required>
-        <input id="rsAddBuy" type="number" step="any" min="0" placeholder="Compro por €" required>
-        <input id="rsAddSell" type="number" step="any" min="0" placeholder="Vendo por €" required>
-        <button type="submit">＋ Juntar</button>
-      </form>
-      <div id="rsTable"></div>
+        <p id="rsSummary" class="rs-summary"></p>
+        <div class="rs-params">
+          <label>Comissão de onde vendes <span class="rs-in"><input type="number" id="rsFee" step="any" min="0" inputmode="decimal"><i>%</i></span></label>
+          <label>Portes e embalagem <span class="rs-in"><input type="number" id="rsCosts" step="any" min="0" inputmode="decimal"><i>€</i></span></label>
+        </div>
+        <div id="rsTable"></div>
+        <p id="rsNoRef" class="rs-noref hidden"><span id="rsNoRefText"></span> <button type="button" id="rsFetch" class="small">💡 Pedir preços à IA</button></p>
+        <h3 class="rs-h">Fazer uma conta à mão</h3>
+        <form id="rsAdd" class="rs-add">
+          <input id="rsAddName" placeholder="Produto (opcional)">
+          <input id="rsAddBuy" type="number" step="any" min="0" inputmode="decimal" placeholder="Compro a €" required>
+          <input id="rsAddSell" type="number" step="any" min="0" inputmode="decimal" placeholder="Revendo a €" required>
+          <button type="submit">Calcular</button>
+        </form>
+        <p id="rsCalc" class="rs-calc" aria-live="polite"></p>
+        <p class="rs-foot">Lucro = revenda − comissão − portes e embalagem − compra. Uma estimativa simples: não conta impostos nem devoluções.</p>
       </div>
   </section>
 
@@ -382,20 +379,20 @@
     </div>
   </div>
 
-  <script src="bg.js?v=34"></script>
-  <script src="js/util.js?v=34"></script>
-  <script src="js/store.js?v=34"></script>
-  <script src="js/extract-lite.js?v=34"></script>
-  <script src="js/translate.js?v=34"></script>
-  <script src="js/crawler.js?v=34"></script>
-  <script src="js/value.js?v=34"></script>
-  <script src="js/deals.js?v=34"></script>
-  <script src="js/resale.js?v=34"></script>
-  <script src="js/items.js?v=34"></script>
-  <script src="js/watch.js?v=34"></script>
-  <script src="js/monitor.js?v=34"></script>
-  <script src="js/sites.js?v=34"></script>
-  <script src="js/barcode.js?v=34"></script>
-  <script src="js/app.js?v=34"></script>
+  <script src="bg.js?v=35"></script>
+  <script src="js/util.js?v=35"></script>
+  <script src="js/store.js?v=35"></script>
+  <script src="js/extract-lite.js?v=35"></script>
+  <script src="js/translate.js?v=35"></script>
+  <script src="js/crawler.js?v=35"></script>
+  <script src="js/value.js?v=35"></script>
+  <script src="js/deals.js?v=35"></script>
+  <script src="js/resale.js?v=35"></script>
+  <script src="js/items.js?v=35"></script>
+  <script src="js/watch.js?v=35"></script>
+  <script src="js/monitor.js?v=35"></script>
+  <script src="js/sites.js?v=35"></script>
+  <script src="js/barcode.js?v=35"></script>
+  <script src="js/app.js?v=35"></script>
 </body>
 </html>

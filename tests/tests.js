@@ -216,30 +216,18 @@
     ok(v.promo && !v.good && v.basis !== 'pvpr', 'promoção duvidosa: o preço antigo da loja deixa de contar e não é "bom negócio"', v);
   }
 
-  group('Simulador de revenda');
+  group('Revenda (simples)');
   {
-    const P = { ...Resale.DEFAULTS, feePct: 10, feeFixed: 0.5, shipIn: 0, shipOut: 5, packaging: 1, returnPct: 0, quickSalePct: 0, vat: 'none' };
+    const P = { feePct: 10, costs: 6 };
     const a = Resale.profit(50, 100, P);
-    // 100 - (10 + 0,5) - 5 - 1 - 50 = 33,5
-    ok(a.net === 33.5 && a.roi === 67, 'lucro: 100 € de venda, 50 € de compra → 33,50 € (67%)', [a.net, a.roi]);
-    const m = Resale.profit(50, 100, { ...P, vat: 'margin' });
-    ok(Math.abs(m.vat - 50 * 0.23 / 1.23) < 0.01, 'regime da margem: IVA só sobre os 50 € de margem', m.vat);
-    const n = Resale.profit(50, 100, { ...P, vat: 'normal' });
-    ok(Math.abs(n.vat - (100 - 100 / 1.23 - (50 - 50 / 1.23))) < 0.01, 'IVA normal: liquidado − dedutível', n.vat);
-    const q = Resale.profit(50, 100, { ...P, quickSalePct: 10, returnPct: 10 });
-    ok(q.sale === 90 && q.returns === 1.1, 'venda 10% abaixo do mercado e custo esperado das devoluções', [q.sale, q.returns]);
-    ok(Resale.profit(0, 100, P) === null && Resale.profit(10, null, P) === null, 'sem preço de compra ou de revenda → sem cálculo');
+    // 100 − 10 (comissão) − 6 (portes e embalagem) − 50 = 34
+    ok(a.net === 34 && a.roi === 68, 'lucro: compro a 50 €, revendo a 100 € → sobram 34 € (68%)', a);
+    ok(Resale.profit(50, 55, P).net < 0, 'margem pequena + custos → prejuízo');
+    ok(Resale.profit(0, 100, P) === null && Resale.profit(10, null, P) === null, 'sem preço de compra ou de revenda → sem conta');
     const it = { name: 'X', url: 'https://loja.pt/p/x', price: 40, oldPrice: 60 };
-    ok(Resale.marketPrice(it, { manual: {}, deal: { lowestPrice: 55, typicalPrice: 65 }, others: [], history: null }).value === 55, 'revenda: usa o mais baixo da concorrência (IA)');
-    ok(Resale.marketPrice(it, { manual: {}, deal: null, others: [], history: null }).source === 'antigo', 'sem IA: usa o preço antigo');
-    const SP = { ...P, budget: 300, months: 6, sellProb: 70, priceVol: 10, dealsAgain: 50, minRoi: 10 };
-    const good = Resale.simulate([{ buy: 50, market: 100 }, { buy: 30, market: 55 }], SP, { runs: 500, seed: 7 });
-    const good2 = Resale.simulate([{ buy: 50, market: 100 }, { buy: 30, market: 55 }], SP, { runs: 500, seed: 7 });
-    ok(good.profit.p50 > 0 && good.probLoss < 10 && good.bands.length === 7, 'simulação rentável dá lucro provável positivo', good.profit);
-    ok(JSON.stringify(good) === JSON.stringify(good2), 'mesma semente → mesmo resultado (repetível)');
-    const bad = Resale.simulate([{ buy: 50, market: 58 }], { ...SP, minRoi: -100 }, { runs: 300, seed: 3 });
-    ok(bad.profit.p50 < 0 && bad.probLoss > 50, 'margem pequena + custos → prejuízo provável', bad.profit);
-    ok(Resale.simulate([{ buy: 50, market: 58 }], SP, { runs: 50 }).pool === 0, 'retorno abaixo do mínimo → não compra');
+    ok(Resale.marketPrice(it, { manual: {}, deal: { lowestPrice: 55, typicalPrice: 65 }, others: [] }).value === 55, 'revenda: usa o mais baixo da concorrência (IA)');
+    ok(/antigo/.test(Resale.marketPrice(it, { manual: {}, deal: null, others: [] }).label), 'sem IA: usa o preço antigo');
+    ok(Resale.marketPrice(it, { manual: { [Store.itemKey(it)]: 70 }, deal: null, others: [] }).value === 70, 'o valor escrito por ti ganha');
   }
 
   group('Rádio Popular (microdata) e sitemap');

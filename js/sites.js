@@ -100,7 +100,7 @@ const SiteCheck = (() => {
 })();
 
 const SiteDir = (() => {
-  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], showResale() {}, collectionStarts: () => [], countryFor: () => null, collections: () => [] };   // página de testes
+  if (!document.getElementById('sdList')) return { load() {}, render() {}, allSites: () => [], collectionStarts: () => [], countryFor: () => null, collections: () => [] };   // página de testes
   const K_MINE = (window.STORE_PREFIX || '') + 'crawler-mysites';
   const K_CHECKS = (window.STORE_PREFIX || '') + 'crawler-sitechecks';
   const STATUS = {
@@ -218,7 +218,7 @@ const SiteDir = (() => {
         <button type="button" class="sd-add-one" data-i="${i}" title="Juntar aos sites já escritos (para comparar lojas)" ${st === 'blocked' || st === 'js' || st === 'robots' ? 'disabled' : ''}>＋</button>
       </div>`).join('');
     return `<div class="sd-card st-${cls}" data-domain="${esc(s.domain)}">
-      <div class="sd-head"><span class="flag">${FLAG[s.country] || '🌐'}</span><b>${esc(s.name)}</b>${s.user ? '<span class="sd-mine">a minha</span>' : ''}<span class="sd-badge">${label}</span>${s.resale ? '<span class="sd-badge sd-rs" title="Mostra o preço antigo/PVPR: o simulador de revenda tem uma referência">📈</span>' : ''}</div>
+      <div class="sd-head"><span class="flag">${FLAG[s.country] || '🌐'}</span><b>${esc(s.name)}</b>${s.user ? '<span class="sd-mine">a minha</span>' : ''}<span class="sd-badge">${label}</span>${s.resale ? '<span class="sd-badge sd-rs" title="Mostra o preço antigo/PVPR: dá um preço de revenda">📈</span>' : ''}</div>
       <small class="sd-meta">${esc(s.domain)}${cats ? ` · ${esc(cats)}` : ''}${s.method ? ` · ${esc(s.method)}` : ''}</small>
       ${s.notes ? `<p class="sd-notes">${esc(s.notes)}</p>` : ''}
       ${starts ? `<div class="sd-starts">${starts}</div>` : ''}
@@ -319,14 +319,6 @@ const SiteDir = (() => {
   $('sdAddBtn').addEventListener('click', addFromUrl);
   $('sdAddUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFromUrl(); } });
 
-  function showResale() {
-    $('sitesPanel').open = true;
-    $('sdStatus').value = 'resale';
-    $('sdCat').value = ''; $('sdCountry').value = ''; $('sdSearch').value = '';
-    render();
-    $('sitesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   /** pais de uma loja conhecida (para a IA comparar no mercado certo: coolmod.com -> ES) */
   function countryFor(url) {
     const h = hostOf(url);
@@ -334,5 +326,5 @@ const SiteDir = (() => {
     return s?.country || null;
   }
 
-  return { load, render, allSites, showResale, collectionStarts, countryFor, collections: () => data.collections || [] };
+  return { load, render, allSites, collectionStarts, countryFor, collections: () => data.collections || [] };
 })();

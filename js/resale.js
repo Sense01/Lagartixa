@@ -1,358 +1,159 @@
 /* =========================================================
-   Simulador de revenda: comprar barato aqui, revender noutro sitio.
-   - lucro liquido por produto (comissoes, portes, embalagem, IVA, devolucoes)
-   - simulacao de Monte Carlo de varios meses (capital reinvestido)
-   Os valores de partida sao suposicoes: cada um ajusta-os a sua plataforma.
+   Revenda (simples): se comprares aqui e revenderes, quanto sobra?
+   lucro = preço de revenda − comissão da plataforma − portes e embalagem − preço de compra
+   Duas suposições apenas (comissão e custos por venda); o preço de revenda de cada produto
+   vem do teu valor, da IA, de outra loja ou do preço antigo — e podes corrigi-lo.
    ========================================================= */
 
 const Resale = (() => {
-  const K_PARAMS = (window.STORE_PREFIX || '') + 'crawler-resale';
-  const K_MANUAL = (window.STORE_PREFIX || '') + 'crawler-resale-prices';
-  const K_EXTRA = (window.STORE_PREFIX || '') + 'crawler-resale-extra';   // produtos escritos a mao
-  const extra = () => { try { return JSON.parse(localStorage.getItem(K_EXTRA) || '[]'); } catch { return []; } };
-  const saveExtra = (l) => { try { localStorage.setItem(K_EXTRA, JSON.stringify(l)); } catch {} };
+  const P = (typeof window !== 'undefined' && window.STORE_PREFIX) || '';
+  const K_PARAMS = P + 'crawler-resale';
+  const K_MANUAL = P + 'crawler-resale-prices';
+  const K_EXTRA = P + 'crawler-resale-extra';             // contas feitas à mão
+  const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
   const DEFAULTS = {
-    feePct: 10,        // comissao da plataforma de venda (%)
-    feeFixed: 0.5,     // taxa fixa por venda (EUR)
-    shipIn: 0,         // portes para receber a compra (EUR)
-    shipOut: 5,        // portes de envio ao comprador, se fores tu a pagar (EUR)
-    packaging: 1,      // embalagem (EUR)
-    vat: 'none',       // 'none' (particular, venda ocasional) | 'normal' (IVA 23%) | 'margin' (regime da margem)
-    vatRate: 23,
-    returnPct: 5,      // % de vendas devolvidas
-    quickSalePct: 10,  // vendes X% abaixo do preco de mercado para vender depressa
-    sellProb: 60,      // probabilidade de vender um artigo em cada mes (%)
-    priceVol: 12,      // incerteza do preco de venda (desvio, %)
-    budget: 500,       // capital inicial (EUR)
-    months: 6,
-    dealsAgain: 40,    // % das oportunidades que voltam a aparecer em cada mes
-    minRoi: 10,        // so compra se o retorno esperado for >= X%
+    feePct: 12,     // comissão da plataforma onde vendes (%)
+    costs: 6,       // portes de envio + embalagem, por venda (€)
   };
-
   const num = (v, d = 0) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : d; };
   const round2 = (v) => Math.round(v * 100) / 100;
+  const params = () => ({ ...DEFAULTS, ...load(K_PARAMS, {}) });
 
-  function params() {
-    let p = {};
-    try { p = JSON.parse(localStorage.getItem(K_PARAMS) || '{}'); } catch {}
-    return { ...DEFAULTS, ...p };
-  }
-  function saveParams(p) { try { localStorage.setItem(K_PARAMS, JSON.stringify(p)); } catch {} }
-  function manual() { try { return JSON.parse(localStorage.getItem(K_MANUAL) || '{}'); } catch { return {}; } }
+  const manual = () => load(K_MANUAL, {});
   function setManual(it, v) {
     const m = manual();
     if (v == null || v === '') delete m[Store.itemKey(it)]; else m[Store.itemKey(it)] = num(v, null);
-    try { localStorage.setItem(K_MANUAL, JSON.stringify(m)); } catch {}
+    save(K_MANUAL, m);
   }
 
-  /** preco a que se consegue revender (antes do desconto para venda rapida) e de onde vem */
+  /** a que preço se revende, e de onde vem esse valor */
   function marketPrice(it, extra = {}) {
     const m = (extra.manual || manual())[Store.itemKey(it)];
-    if (m != null && m > 0) return { value: m, source: 'manual', label: 'o teu valor' };
+    if (m != null && m > 0) return { value: m, label: 'o teu valor' };
     const d = extra.deal !== undefined ? extra.deal : Store.getDeal(it, 7 * 24 * 3600e3);
     if (d && !d.error) {
-      // o mais baixo da concorrencia e o preco realista para vender (o "tipico" e otimista)
+      // o mais baixo da concorrência é o preço realista para vender (o "típico" é otimista)
       const comp = [d.lowestPrice, d.typicalPrice].map((x) => num(x, null)).filter((x) => x > 0);
-      if (comp.length) return { value: Math.min(...comp), source: 'ia', label: 'IA: preço noutras lojas' };
+      if (comp.length) return { value: Math.min(...comp), label: 'noutras lojas (IA)' };
     }
     const others = (extra.others || Store.otherStores(it)).map((o) => o.price).filter((x) => x > it.price);
-    if (others.length) return { value: Math.min(...others), source: 'lojas', label: 'outra loja (histórico)' };
-    if (it.oldPrice > it.price) return { value: it.oldPrice, source: 'antigo', label: 'preço antigo/PVPR (otimista)' };
-    const h = extra.history !== undefined ? extra.history : Store.historyStats(it);
-    if (h && h.max > it.price) return { value: h.max, source: 'historico', label: 'máximo do histórico' };
-    return { value: null, source: null, label: 'sem referência' };
+    if (others.length) return { value: Math.min(...others), label: 'noutra loja' };
+    if (it.oldPrice > it.price) return { value: it.oldPrice, label: 'preço antigo (otimista)' };
+    return { value: null, label: '' };
   }
 
-  /** contas de uma venda: devolve as parcelas e o lucro esperado */
-  function profit(buy, market, p = DEFAULTS) {
-    if (!(buy > 0) || !(market > 0)) return null;
-    const sale = market * (1 - p.quickSalePct / 100);
-    const fees = sale * p.feePct / 100 + p.feeFixed;
-    const r = p.vatRate / 100;
-    let vat = 0;
-    if (p.vat === 'normal') vat = (sale - sale / (1 + r)) - (buy - buy / (1 + r));   // IVA liquidado - IVA dedutivel
-    else if (p.vat === 'margin') vat = Math.max(0, sale - buy) * r / (1 + r);       // so sobre a margem
-    const returns = p.returnPct / 100 * (2 * p.shipOut + p.packaging);              // custo esperado das devolucoes
-    const costs = buy + p.shipIn + p.shipOut + p.packaging;
-    const net = sale - fees - costs - vat - returns;
-    const invested = buy + p.shipIn;
-    return {
-      sale: round2(sale), fees: round2(fees), vat: round2(vat), returns: round2(returns),
-      ship: round2(p.shipIn + p.shipOut), packaging: round2(p.packaging),
-      net: round2(net), roi: round2(net / invested * 100), invested: round2(invested),
-    };
+  /** contas de uma venda */
+  function profit(buy, sell, p = DEFAULTS) {
+    if (!(buy > 0) || !(sell > 0)) return null;
+    const fee = sell * p.feePct / 100;
+    const net = sell - fee - p.costs - buy;
+    return { fee: round2(fee), net: round2(net), roi: Math.round(net / buy * 100) };
   }
 
-  /* ---------- Monte Carlo ---------- */
-
-  function rng(seed) {   // mulberry32: resultados repetiveis com a mesma semente
-    let a = seed >>> 0;
-    return () => {
-      a = (a + 0x6D2B79F5) >>> 0;
-      let t = a;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-  const gauss = (rand) => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
-  const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(q * (sorted.length - 1))))];
-
-  /**
-   * cands: [{ buy, market }]. Cada mes: algumas oportunidades reaparecem e compra-se 1 unidade das que
-   * tem retorno >= minRoi enquanto houver dinheiro; cada artigo em stock vende com probabilidade sellProb.
-   * O stock que sobra no fim e avaliado ao preco de custo (conservador).
-   */
-  function simulate(cands, p = DEFAULTS, { runs = 2000, seed = 42 } = {}) {
-    const rand = rng(seed);
-    const pool = cands
-      .map((c) => ({ ...c, calc: profit(c.buy, c.market, p) }))
-      .filter((c) => c.calc && c.calc.roi >= p.minRoi)
-      .sort((a, b) => b.calc.roi - a.calc.roi);
-    const months = Math.max(1, Math.round(p.months));
-    const equity = Array.from({ length: months + 1 }, () => []);
-    const finals = [], soldN = [], boughtN = [], returnedN = [];
-    const r = p.vatRate / 100;
-    for (let run = 0; run < runs; run++) {
-      let cash = p.budget, sold = 0, bought = 0, returned = 0;
-      let stock = [];
-      equity[0].push(p.budget);
-      for (let m = 1; m <= months; m++) {
-        for (const c of pool) {
-          if (m > 1 && rand() * 100 >= p.dealsAgain) continue;      // a promocao pode nao voltar
-          const cost = c.buy + p.shipIn;
-          if (cash < cost) continue;
-          cash -= cost; bought++;
-          stock.push(c);
-        }
-        const left = [];
-        for (const c of stock) {
-          if (rand() * 100 >= p.sellProb) { left.push(c); continue; }
-          const sale = Math.max(0, c.calc.sale * (1 + gauss(rand) * p.priceVol / 100));
-          if (rand() * 100 < p.returnPct) {                         // devolvido: perde portes e embalagem, volta ao stock
-            cash -= 2 * p.shipOut + p.packaging; returned++; left.push(c); continue;
-          }
-          let vat = 0;
-          if (p.vat === 'normal') vat = (sale - sale / (1 + r)) - (c.buy - c.buy / (1 + r));
-          else if (p.vat === 'margin') vat = Math.max(0, sale - c.buy) * r / (1 + r);
-          cash += sale - (sale * p.feePct / 100 + p.feeFixed) - p.shipOut - p.packaging - vat;
-          sold++;
-        }
-        stock = left;
-        equity[m].push(cash + stock.reduce((s, c) => s + c.buy + p.shipIn, 0));
-      }
-      finals.push(equity[months][equity[months].length - 1] - p.budget);
-      soldN.push(sold); boughtN.push(bought); returnedN.push(returned);
-    }
-    const sortN = (a) => [...a].sort((x, y) => x - y);
-    const fs = sortN(finals);
-    const avg = (a) => a.reduce((s, x) => s + x, 0) / (a.length || 1);
-    return {
-      pool: pool.length,
-      runs,
-      bands: equity.map((col) => { const s = sortN(col); return { p10: pct(s, 0.1), p50: pct(s, 0.5), p90: pct(s, 0.9) }; }),
-      profit: { p10: round2(pct(fs, 0.1)), p50: round2(pct(fs, 0.5)), p90: round2(pct(fs, 0.9)), mean: round2(avg(fs)) },
-      probLoss: round2(fs.filter((x) => x < 0).length / fs.length * 100),
-      roi: round2(pct(fs, 0.5) / p.budget * 100),
-      sold: round2(avg(soldN)), bought: round2(avg(boughtN)), returned: round2(avg(returnedN)),
-    };
+  function rows() {
+    const p = params(), man = manual();
+    const own = load(K_EXTRA, []).map((e) => ({ it: { name: e.name, url: e.url, price: e.buy, own: true }, mk: { value: e.sell, label: 'conta tua' } }));
+    const found = items.filter((it) => it.price > 0 && it.availability !== 'out').map((it) => ({ it, mk: marketPrice(it, { manual: man }) }));
+    return [...own, ...found].map((r) => ({ ...r, calc: profit(r.it.price, r.mk.value, p) }))
+      .sort((a, b) => (b.calc?.net ?? -1e9) - (a.calc?.net ?? -1e9));
   }
 
   /* ---------- interface ---------- */
 
-  const FIELDS = [
-    ['budget', 'Capital inicial', '€'], ['months', 'Meses', ''], ['minRoi', 'Comprar só com retorno ≥', '%'],
-    ['feePct', 'Comissão da plataforma', '%'], ['feeFixed', 'Taxa fixa por venda', '€'], ['quickSalePct', 'Vender abaixo do mercado', '%'],
-    ['shipIn', 'Portes da compra', '€'], ['shipOut', 'Portes de envio (pagos por ti)', '€'], ['packaging', 'Embalagem', '€'],
-    ['returnPct', 'Devoluções', '%'], ['sellProb', 'Probabilidade de vender por mês', '%'], ['priceVol', 'Incerteza do preço de venda', '%'],
-    ['dealsAgain', 'Promoções que voltam cada mês', '%'],
-  ];
-
-  function rows() {
-    const p = params();
-    const man = manual();
-    const own = extra().map((e) => ({ it: { name: e.name, url: e.url, price: e.buy, own: true }, mk: { value: e.sell, source: 'manual', label: 'escrito por ti' } }));
-    return [...own.map((r) => ({ ...r, calc: profit(r.it.price, r.mk.value, p) })), ...items
-      .filter((it) => it.price > 0 && it.availability !== 'out')
-      .map((it) => { const mk = marketPrice(it, { manual: man }); return { it, mk, calc: profit(it.price, mk.value, p) }; })]
-      .sort((a, b) => (b.calc?.roi ?? -1e9) - (a.calc?.roi ?? -1e9));
-  }
-
-  function paramsHtml(p) {
-    return FIELDS.map(([k, label, unit]) => `<label class="rs-f"><span>${label}</span>
-      <span class="rs-in"><input type="number" step="any" min="0" data-k="${k}" value="${esc(String(p[k]))}">${unit ? `<i>${unit}</i>` : ''}</span></label>`).join('') +
-      `<label class="rs-f"><span>IVA</span><select data-k="vat">
-        <option value="none"${p.vat === 'none' ? ' selected' : ''}>Particular, venda ocasional (sem IVA)</option>
-        <option value="margin"${p.vat === 'margin' ? ' selected' : ''}>Regime da margem (usados)</option>
-        <option value="normal"${p.vat === 'normal' ? ' selected' : ''}>IVA normal (${p.vatRate}%)</option></select></label>`;
-  }
-
-  function tableHtml(list) {
-    if (!list.length) return '<p class="empty">Faz uma pesquisa (os produtos encontrados aparecem aqui) ou junta produtos à mão no formulário acima.</p>';
-    const show = list.slice(0, 40);
-    return `<div class="rs-table"><div class="rs-tr rs-th"><span>Produto</span><span>Compra</span><span>Revenda</span><span>Lucro</span><span>Retorno</span></div>` +
-      show.map(({ it, mk, calc }, i) => {
-        const cls = !calc ? 'rs-na' : calc.net <= 0 ? 'rs-bad' : calc.roi >= params().minRoi ? 'rs-good' : 'rs-meh';
-        const tip = calc ? `Venda ${fmtPrice(calc.sale)} − comissões ${fmtPrice(calc.fees)} − portes ${fmtPrice(calc.ship)} − embalagem ${fmtPrice(calc.packaging)}${calc.vat ? ` − IVA ${fmtPrice(calc.vat)}` : ''} − devoluções ${fmtPrice(calc.returns)} − compra ${fmtPrice(it.price)}` : 'Escreve o preço a que achas que vendes';
-        return `<div class="rs-tr ${cls}" title="${esc(tip)}">
-          ${it.own ? `<span class="rs-name">${esc(it.name)}<small><button type="button" class="rs-del" data-del="${esc(it.url)}">remover</button></small></span>`
-            : `<a class="rs-name" href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.name || it.url)}<small>${esc(hostOf(it.url))}</small></a>`}
-          <span>${fmtPrice(it.price)}</span>
-          <span class="rs-mk"><input type="number" step="any" min="0" data-i="${i}" placeholder="?" value="${mk.value != null ? round2(mk.value) : ''}"><small>${esc(mk.label)}</small></span>
-          <span class="rs-net">${calc ? fmtPrice(calc.net) : '—'}</span>
-          <span>${calc ? `${calc.roi > 0 ? '+' : ''}${Math.round(calc.roi)}%` : '—'}</span>
-        </div>`;
-      }).join('') + `</div>${list.length > show.length ? `<p class="rs-more">+${list.length - show.length} produtos com menor retorno</p>` : ''}`;
-  }
-
-  function chartSvg(bands, budget, width = 640) {
-    const W = Math.max(280, Math.round(width)), H = W < 500 ? 180 : 230, L = 52, R = 30, T = 12, B = 26;
-    const all = bands.flatMap((b) => [b.p10, b.p90]).concat(budget);
-    let lo = Math.min(...all), hi = Math.max(...all);
-    if (hi - lo < 1) { hi += 1; lo -= 1; }
-    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
-    const x = (i) => L + (W - L - R) * (bands.length > 1 ? i / (bands.length - 1) : 0);
-    const y = (v) => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
-    const line = (k) => bands.map((b, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(b[k]).toFixed(1)}`).join('');
-    const area = bands.map((b, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(b.p90).toFixed(1)}`).join('') +
-      bands.slice().reverse().map((b, j) => `L${x(bands.length - 1 - j).toFixed(1)},${y(b.p10).toFixed(1)}`).join('') + 'Z';
-    const ticks = [lo + pad, (lo + hi) / 2, hi - pad];
-    return `<svg class="rs-chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Capital ao longo dos meses">
-      ${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="rs-grid"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" class="rs-ax">${Math.round(v)} €</text>`).join('')}
-      <line x1="${L}" x2="${W - R}" y1="${y(budget)}" y2="${y(budget)}" class="rs-base"/>
-      <path d="${area}" class="rs-band"/><path d="${line('p50')}" class="rs-line"/>
-      ${bands.map((b, i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" class="rs-ax">${i ? (W < 500 ? i : `mês ${i}`) : (W < 500 ? '0' : 'início')}</text>`).join('')}
-    </svg>`;
-  }
-
-  function resultHtml(res, p) {
-    if (!res.pool) return `<div class="rs-res rs-warn">Nenhum produto tem retorno ≥ ${p.minRoi}% com estas contas — com estes custos, comprar para revender não compensa. Experimenta mudar os custos, o preço de revenda ou o retorno mínimo.</div>`;
-    const tone = res.profit.p50 <= 0 ? 'rs-warn' : res.probLoss > 20 ? 'rs-mid' : 'rs-ok';
-    const verdict = res.profit.p50 <= 0 ? 'Com estas suposições, a ideia <b>não é rentável</b>.'
-      : res.probLoss > 20 ? 'Pode dar lucro, mas com <b>risco alto</b> de perder dinheiro.'
-      : 'Com estas suposições, a ideia <b>parece rentável</b>.';
-    return `<div class="rs-res ${tone}">
-      <p class="rs-verdict">${verdict}</p>
-      <div class="rs-tiles">
-        <div><b>${fmtPrice(res.profit.p50)}</b><span>lucro provável em ${p.months} meses</span></div>
-        <div><b>${res.roi > 0 ? '+' : ''}${Math.round(res.roi)}%</b><span>retorno sobre ${fmtPrice(p.budget)}</span></div>
-        <div><b>${Math.round(res.probLoss)}%</b><span>dos cenários perdem dinheiro</span></div>
-        <div><b>${fmtPrice(res.profit.p10)} a ${fmtPrice(res.profit.p90)}</b><span>intervalo de 80% dos cenários</span></div>
-      </div>
-      ${chartSvg(res.bands, p.budget, ($('rsResult')?.clientWidth || 672) - 34)}
-      <p class="rs-foot">${res.runs.toLocaleString('pt-PT')} cenários · ${res.pool} ${res.pool === 1 ? 'oportunidade usada' : 'oportunidades usadas'} · em média ${Math.round(res.bought)} compras, ${Math.round(res.sold)} vendas e ${Math.round(res.returned)} devoluções.
-      Linha = cenário mediano; faixa = 80% dos cenários; tracejado = capital inicial. O stock por vender no fim conta ao preço de custo.
-      Estimativa simplificada, não é aconselhamento fiscal ou financeiro.</p>
+  const rowHtml = ({ it, mk, calc }, i) => `
+    <div class="rs-tr ${!calc ? 'rs-na' : calc.net > 0 ? 'rs-good' : 'rs-bad'}">
+      ${it.own
+        ? `<span class="rs-name">${esc(it.name)}<small><button type="button" class="rs-del" data-del="${esc(it.url)}">remover</button></small></span>`
+        : `<a class="rs-name" href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.name || it.url)}<small>${esc(hostOf(it.url))}</small></a>`}
+      <span class="rs-buy">${fmtPrice(it.price)}</span>
+      <span class="rs-mk"><input type="number" step="any" min="0" data-i="${i}" placeholder="vendo a…" aria-label="Preço de revenda" value="${mk.value != null ? round2(mk.value) : ''}"><small>${esc(mk.label)}</small></span>
+      <span class="rs-net">${calc ? `${calc.net > 0 ? '+' : ''}${fmtPrice(calc.net)}` : '—'}</span>
     </div>`;
-  }
 
   let lastRows = [];
   function render() {
-    const panel = $('resalePanel');
-    if (!panel) return;
+    if (!$('resalePanel')) return;
     const p = params();
-    if (!$('rsParams').dataset.ready) { $('rsParams').innerHTML = paramsHtml(p); $('rsParams').dataset.ready = '1'; }
+    $('rsFee').value = p.feePct;
+    $('rsCosts').value = p.costs;
     lastRows = rows();
-    $('rsTable').innerHTML = tableHtml(lastRows);
-    const good = lastRows.filter((r) => r.calc && r.calc.roi >= p.minRoi);
-    const noRef = lastRows.filter((r) => !r.calc).length;
-    $('rsSummary').textContent = `${good.length} de ${lastRows.length} produtos com retorno ≥ ${p.minRoi}%` +
-      (noRef ? ` · ${noRef} sem preço de revenda (escreve-o ou usa 💡 Negócio?)` : '');
-    // poucos produtos com referencia: explicar como arranjar uma
-    const weak = lastRows.filter((r) => !r.calc || ['antigo', 'historico'].includes(r.mk.source)).length;
-    const tip = $('rsTip');
-    if (tip) {
-      const show = items.length > 0 && (noRef > 0 || weak > lastRows.length / 2);
-      tip.classList.toggle('hidden', !show && items.length > 0);
-      tip.innerHTML = !items.length
-        ? `Ainda não há produtos. Escolhe uma loja que mostra o preço antigo (o simulador precisa de um preço de revenda) — <button type="button" class="link" data-rs="lojas">📈 ver lojas boas para o simulador</button> — ou junta produtos à mão no formulário abaixo.`
-        : `<b>${noRef}</b> produto(s) sem preço de revenda e <b>${weak - noRef}</b> só com o preço antigo (otimista).
-          <button type="button" class="link" data-rs="ia">💡 Pedir à IA o preço noutras lojas</button> (até 10 de cada vez, conta para o limite diário),
-          escreve tu o preço a que se vende, ou <button type="button" class="link" data-rs="lojas">📈 usa lojas que mostram preço antigo</button>.`;
-    }
+    const withRef = lastRows.filter((r) => r.calc), noRef = lastRows.filter((r) => !r.calc);
+    const good = withRef.filter((r) => r.calc.net > 0);
+    const best = good[0];
+    $('rsSummary').innerHTML = !lastRows.length
+      ? 'Faz uma pesquisa e os produtos aparecem aqui. Também podes fazer uma conta à mão em baixo.'
+      : good.length
+        ? `<b>${good.length} de ${withRef.length}</b> produto${withRef.length > 1 ? 's' : ''} ${good.length > 1 ? 'dão' : 'dá'} lucro. ` +
+          `O melhor: comprar a ${fmtPrice(best.it.price)} e revender a ${fmtPrice(best.mk.value)} deixa <b class="rs-plus">${fmtPrice(best.calc.net)}</b>.`
+        : withRef.length ? 'Com estes custos, <b>nenhum produto dá lucro</b> a revender.' : 'Ainda não há preços de revenda para comparar.';
+    $('rsTable').innerHTML = withRef.length
+      ? `<div class="rs-table"><div class="rs-tr rs-th"><span>Produto</span><span>Compro</span><span>Revendo</span><span>Sobra</span></div>${withRef.slice(0, 40).map((r) => rowHtml(r, lastRows.indexOf(r))).join('')}</div>`
+      : '';
+    $('rsNoRef').classList.toggle('hidden', !noRef.length);
+    $('rsNoRefText').textContent = `${noRef.length} produto${noRef.length > 1 ? 's' : ''} sem preço de revenda.`;
   }
   const renderSoon = debounce(render, 300);
 
-  function run() {
-    const p = params();
-    const cands = lastRows.filter((r) => r.calc).map((r) => ({ buy: r.it.price, market: r.mk.value }));
-    $('rsResult').innerHTML = '<div class="rs-res">⏳ A simular…</div>';
-    setTimeout(() => { $('rsResult').innerHTML = resultHtml(simulate(cands, p, { runs: 2000, seed: Date.now() % 1e9 }), p); }, 30);
-  }
-
-  /** pede a avaliacao da IA (preco noutras lojas) para os produtos sem referencia ou so com PVPR */
+  /** pede à IA o preço noutras lojas para os produtos sem referência (ou só com o preço antigo) */
   let fetching = false;
   async function fetchPrices() {
     if (fetching) return;
-    const todo = lastRows.filter((r) => !r.it.own && (!r.calc || ['antigo', 'historico'].includes(r.mk.source)))
+    const todo = lastRows.filter((r) => !r.it.own && (!r.calc || r.mk.label.startsWith('preço antigo')))
       .sort((a, b) => (b.it.discount ?? -1) - (a.it.discount ?? -1)).slice(0, 10).map((r) => r.it);
     if (!todo.length) return toast('Todos os produtos já têm um preço de revenda', 3000);
-    if (typeof evaluateDeal !== 'function' || !workerBase()) return toast('Configura "O meu proxy" (o teu Worker) para usar a IA', 4000);
+    if (typeof evaluateDeal !== 'function' || !workerBase()) return toast('Configura o teu Worker (Opções avançadas) para usar a IA', 4000);
     fetching = true;
     const btn = $('rsFetch'); btn.disabled = true;
     let done = 0, failed = '';
     for (const it of todo) {
-      btn.textContent = `💡 ${done + 1}/${todo.length}…`;
-      const d = await evaluateDeal(it);
-      if (d?.error) { failed = d.error; if (/proxy|Worker|API_KEY|chave|autorizada|limite/i.test(d.error)) break; } else done++;
+      btn.textContent = `💡 ${done + 1} de ${todo.length}…`;
+      const d = await evaluateDeal(it, { retry: false });
+      if (d?.error) { failed = d.error; break; }
+      done++;
       render();
     }
-    btn.disabled = false; btn.textContent = '💡 Obter preços de revenda'; fetching = false;
+    btn.disabled = false; btn.textContent = '💡 Pedir preços à IA'; fetching = false;
     render();
     toast(done ? `💡 ${done} preço(s) de revenda obtidos` : `Não foi possível: ${failed}`, 4000);
   }
 
   function init() {
     if (!$('resalePanel')) return;
-    $('rsParams').addEventListener('input', (e) => {
-      const k = e.target.dataset.k;
-      if (!k) return;
-      const p = params();
-      p[k] = k === 'vat' ? e.target.value : num(e.target.value, DEFAULTS[k]);
-      saveParams(p);
-      renderSoon();
-    });
+    const setParam = (k, v) => { save(K_PARAMS, { ...params(), [k]: num(v, DEFAULTS[k]) }); renderSoon(); };
+    $('rsFee').addEventListener('input', (e) => setParam('feePct', e.target.value));
+    $('rsCosts').addEventListener('input', (e) => setParam('costs', e.target.value));
     $('rsTable').addEventListener('change', (e) => {
       const i = e.target.dataset.i;
       if (i == null) return;
       const row = lastRows[+i];
-      if (row.it.own) saveExtra(extra().map((x) => (x.url === row.it.url ? { ...x, sell: num(e.target.value, x.sell) } : x)));
+      if (row.it.own) save(K_EXTRA, load(K_EXTRA, []).map((x) => (x.url === row.it.url ? { ...x, sell: num(e.target.value, x.sell) } : x)));
       else setManual(row.it, e.target.value);
       render();
     });
     $('rsTable').addEventListener('click', (e) => {
       const del = e.target.closest('[data-del]');
       if (!del) return;
-      saveExtra(extra().filter((x) => x.url !== del.dataset.del));
+      save(K_EXTRA, load(K_EXTRA, []).filter((x) => x.url !== del.dataset.del));
       render();
     });
     $('rsAdd').addEventListener('submit', (e) => {
       e.preventDefault();
       const buy = num($('rsAddBuy').value, 0), sell = num($('rsAddSell').value, 0);
       if (!(buy > 0) || !(sell > 0)) return;
-      saveExtra([...extra(), { name: $('rsAddName').value.trim(), buy, sell, url: 'manual:' + Date.now() }]);
+      save(K_EXTRA, [...load(K_EXTRA, []), { name: $('rsAddName').value.trim() || 'Conta à mão', buy, sell, url: 'manual:' + Date.now() }]);
+      // a resposta aparece logo ao lado do formulário (e a conta fica na lista)
+      const c = profit(buy, sell, params());
+      $('rsCalc').innerHTML = `${c.net > 0 ? 'Sobram' : 'Perdes'} <b class="${c.net > 0 ? 'rs-plus' : 'rs-minus'}">${fmtPrice(Math.abs(c.net))}</b> (comissão ${fmtPrice(c.fee)}, portes e embalagem ${fmtPrice(params().costs)}).`;
       $('rsAdd').reset();
       render();
     });
     $('goResale')?.addEventListener('click', () => Sheets.open('resale'));
-    $('rsRun').addEventListener('click', run);
     $('rsFetch').addEventListener('click', fetchPrices);
-    $('rsTip')?.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-rs]');
-      if (!b) return;
-      if (b.dataset.rs === 'ia') fetchPrices();
-      else { Sheets.close(); SiteDir.showResale(); }
-    });
-    $('rsReset').addEventListener('click', () => {
-      saveParams({ ...DEFAULTS });
-      $('rsParams').dataset.ready = '';
-      render();
-      toast('Valores de partida repostos', 2500);
-    });
     Store.on('deal', renderSoon);
     render();
   }
 
-  return { DEFAULTS, marketPrice, profit, simulate, render, renderSoon, init, params };
+  return { DEFAULTS, marketPrice, profit, render, renderSoon, init, params };
 })();

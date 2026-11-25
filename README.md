@@ -49,8 +49,8 @@ com um Worker da Cloudflare para ler as lojas, avaliar negócios e enviar alerta
 - **💡 É bom negócio?** — IA com pesquisa web (Groq/xAI/Anthropic) dá veredicto, preço típico, mais baixo e PVP; por omissão
   só ao tocar no botão (há um modo automático). Uma avaliação por modelo: as variantes de cor herdam o resultado. Quando a
   Groq atinge o limite por minuto, a app espera ("a IA está em cooldown") e continua.
-- **📈 Simulador de revenda**: lucro líquido por produto (comissões, portes, embalagem, IVA, devoluções) e simulação de
-  vários meses com o capital reinvestido.
+- **📈 Revenda**: para cada produto, quanto sobra se o revenderes (revenda − comissão − portes e embalagem − compra).
+  Duas suposições só, o preço de revenda corrigível e uma conta à mão rápida.
 - 📸 cartão PNG do produto (no iPhone abre a folha de partilha para guardar nas Fotografias).
 
 **Seguir e alertas**
