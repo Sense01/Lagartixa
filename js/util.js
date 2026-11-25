@@ -65,7 +65,6 @@ const Sheets = (() => {
     if (!current()) opener = document.activeElement;
     show(name);
     const el = all().find((x) => x.dataset.sheet === name);
-    if (name === 'log') { const b = el.querySelector('.sheet-body'); b.scrollTop = b.scrollHeight; }   // o registo abre no fim (o mais recente)
     el?.querySelector('.sheet-close')?.focus({ preventScroll: true });
     document.dispatchEvent(new CustomEvent('sheet', { detail: name }));
   }

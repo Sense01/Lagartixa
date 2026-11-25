@@ -1211,3 +1211,18 @@ input[type="checkbox"]:checked::after { background: #fff; }
 .rs-foot { color: var(--faint); font-size: 0.75rem; margin: 0.8rem 0 0; }
 .rs-calc { margin: 0.6rem 0 0; font-size: 0.92rem; color: var(--text); }
 .rs-minus { color: var(--err); }
+
+/* páginas visitadas */
+.visited-list { display: flex; flex-direction: column; gap: 0.45rem; }
+.visited-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.7rem; border-radius: 14px; background: var(--surface); color: var(--text); text-decoration: none; }
+.visited-row:hover { background: var(--surface-hover); }
+.visited-row img, .visited-ph { width: 44px; height: 44px; border-radius: 10px; object-fit: contain; background: #fff; flex-shrink: 0; display: grid; place-items: center; }
+.visited-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.visited-txt b { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.visited-txt small { color: var(--muted); font-size: 0.75rem; }
+.visited-price { font-variant-numeric: tabular-nums; }
+.visited-foot { margin: 0.9rem 0 0; text-align: center; }
+/* registo dentro das opções avançadas */
+.adv-log > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.adv-log > summary small { font-weight: 400; color: var(--faint); margin-left: 0.3rem; }
+.adv-log #log { margin-top: 0.6rem; max-height: 260px; padding: 0.7rem; border-radius: 12px; background: var(--field); }

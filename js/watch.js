@@ -100,3 +100,54 @@ async function refreshWatchPrices() {
 
 $('watchRefresh').addEventListener('click', refreshWatchPrices);
 Store.on('watch', () => { renderWatch(); Monitor.scheduleSync(); });
+
+/* ---------- Páginas visitadas: os produtos que abriste a partir da app ---------- */
+const Visited = (() => {
+  const KEY = ((typeof window !== 'undefined' && window.STORE_PREFIX) || '') + 'crawler-visited';
+  const MAX = 100;
+  const list = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
+  const save = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l.slice(0, MAX))); } catch {} };
+
+  /** guarda um link aberto (o mais recente fica em cima; o mesmo endereço não se repete) */
+  function add(v) {
+    if (!/^https?:\/\//i.test(v.url || '')) return;
+    save([{ ...v, t: Date.now() }, ...list().filter((x) => x.url !== v.url)]);
+    if (Sheets.current() === 'visited') render();
+  }
+
+  const ago = (t) => {
+    const m = Math.round((Date.now() - t) / 60000);
+    return m < 1 ? 'agora' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : fmtDate(t);
+  };
+
+  function render() {
+    const l = list();
+    $('visitedList').innerHTML = l.length
+      ? l.map((v) => `<a class="visited-row" href="${esc(v.url)}" target="_blank" rel="noopener" data-visited="1">
+          ${v.image ? `<img src="${esc(v.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="visited-ph">🔗</span>'}
+          <span class="visited-txt"><b>${esc(v.name || hostOf(v.url))}</b><small>${esc(hostOf(v.url))} · ${ago(v.t)}</small></span>
+          ${v.price != null ? `<b class="visited-price">${fmtPrice(v.price)}</b>` : ''}
+        </a>`).join('')
+      : '<p class="empty">Ainda não abriste nenhum produto. Quando tocares em "Abrir ↗" num produto, ele fica guardado aqui.</p>';
+    $('visitedClear').classList.toggle('hidden', !l.length);
+  }
+
+  function init() {
+    if (!$('visitedPanel')) return;
+    // qualquer link para uma loja aberto a partir da app (cartões, comparação, leitor, seguidos, preços da IA)
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href^="http"][target="_blank"]');
+      if (!a || a.dataset.visited || a.closest('#visitedPanel')) return;
+      const card = a.closest('.item');
+      const it = card ? items[+card.dataset.idx] : null;
+      const url = it && a.classList.contains('btn') ? it.url : a.href;
+      if (it && url === it.url) add({ url, name: it.name, price: it.price, image: it.image || '' });
+      else if (it) add({ url, name: it.name, image: it.image || '' });          // o mesmo produto, noutra loja
+      else add({ url, name: (a.querySelector('.w-name, .rs-name')?.textContent || a.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120) });
+    }, true);
+    $('visitedClear').addEventListener('click', () => { save([]); render(); });
+    document.addEventListener('sheet', (e) => { if (e.detail === 'visited') render(); });
+  }
+
+  return { add, list, render, init };
+})();

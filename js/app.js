@@ -441,5 +441,6 @@ renderSearches();
 renderWatch();
 SiteDir.load();
 Resale.init();
+Visited.init();
 Barcode.initUi();
 if (Store.watchList().length || Store.searches().some((s) => s.monitor)) Monitor.refresh();
